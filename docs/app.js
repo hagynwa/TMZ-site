@@ -211,7 +211,8 @@ function drawSide(views) {
       <div class="lg"><span class="s alum"></span>${esc(t('legend.alumni'))} &mdash; ${num(COMMUNITIES.length - open)}</div>
       <div class="lg"><span class="s clus"></span>${esc(t('legend.cluster'))}</div>
     </div>
-    <div class="flyto">${esc(t('fly.to'))}</div>${rows}`;
+    <div class="flyto">${esc(t('fly.to'))}</div>${rows}
+    <p class="side-note">${esc(t('foot.mock'))} <a href="canvas.html">${esc(t('foot.canvas'))} &rarr;</a></p>`;
 
   $('#side').querySelectorAll('[data-view]').forEach(b => {
     b.onclick = () => { view.zoom = b.dataset.view; view.custom = null; drawMap(); };
