@@ -1,0 +1,233 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@300;400;500;700&family=Heebo:wght@200;300;400;500;600&display=swap">
+  <style>
+    body { margin: 0; background: #070B16; }
+    a { color: #E8C87D; text-decoration: none; }
+    a:hover { color: #F6E2AE; }
+    .yrItem { font-family: 'Frank Ruhl Libre','Times New Roman',serif; font-weight: 300; color: #94A2BE; line-height: 1; white-space: nowrap; }
+    .yrItem.sel { color: #E8C87D; font-weight: 400; }
+    .card { display: flex; flex-direction: column; gap: 9px; }
+    .pf { width: 100%; aspect-ratio: 1; border-radius: 2px; overflow: hidden; background: #16223A; border: 1px solid rgba(255,255,255,.06); }
+    .pn { font-family: 'Heebo','Helvetica Neue',Arial,sans-serif; font-size: 12px; font-weight: 400; color: #F0EDE4; }
+    .pr { font-family: 'Heebo','Helvetica Neue',Arial,sans-serif; font-size: 10px; font-weight: 300; letter-spacing: .1em; color: #7E8AA3; }
+    .chip { font-family: 'Heebo','Helvetica Neue',Arial,sans-serif; font-size: 9.5px; font-weight: 400; letter-spacing: .08em;
+      color: #C6B490; background: rgba(232,200,125,.09); border: 1px solid rgba(232,200,125,.2); border-radius: 2px; padding: 4px 8px; white-space: nowrap; }
+  </style>
+</helmet>
+
+<div style="position: relative; width: 1280px; height: 1040px; overflow: hidden; background: #070B16; font-family: 'Heebo','Helvetica Neue',Arial,sans-serif;">
+
+  <div style="position: absolute; left: 640px; top: 150px; width: 1400px; height: 700px; margin: -350px 0 0 -700px; border-radius: 50%; background: radial-gradient(ellipse, rgba(232,200,125,.09) 0%, rgba(7,11,22,0) 68%);"></div>
+
+  <!-- masthead -->
+  <div style="position: relative; display: flex; align-items: center; justify-content: space-between; height: 66px; padding: 0 40px; box-sizing: border-box; border-bottom: 1px solid rgba(255,255,255,.05);">
+    <div style="display: flex; align-items: center; gap: 16px;">
+      <img src="tmz-mark.png" alt="Torah MiTzion" style="width: 32px; height: 30px; display: block;">
+      <span style="width: 1px; height: 22px; background: rgba(255,255,255,.14);"></span>
+      <a href="#" style="display: flex; align-items: center; gap: 8px; font-size: 12px; letter-spacing: .1em; color: #94A2BE;">
+        <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="#94A2BE" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M16 10H5"></path><path d="M9 6l-4 4 4 4"></path></svg>
+        <span>All communities</span>
+      </a>
+      <span style="width: 1px; height: 15px; background: rgba(255,255,255,.14);"></span>
+      <span style="font-size: 12px; letter-spacing: .1em; color: #F0EDE4;">Memphis</span>
+    </div>
+    <a href="#" style="font-size: 12px; font-weight: 500; letter-spacing: .08em; color: #070B16; background: #E8C87D; border-radius: 2px; padding: 9px 16px;">Add to this year</a>
+  </div>
+
+  <!-- flying through the years -->
+  <div style="position: relative; padding: 34px 40px 0;">
+    <div style="display: flex; align-items: baseline; justify-content: center; gap: 5px; height: 56px; overflow: hidden;">
+      <sc-for list="{{yearRail}}" as="y" hint-placeholder-count="26">
+        <span class="yrItem {{y.cls}}" style="font-size: {{y.size}}px; opacity: {{y.op}};">{{y.label}}</span>
+      </sc-for>
+    </div>
+    <div style="display: flex; justify-content: center; margin-top: 10px;">
+      <span style="width: 46px; height: 1px; background: #E8C87D;"></span>
+    </div>
+  </div>
+
+  <!-- the year -->
+  <div style="position: relative; display: flex; align-items: flex-end; justify-content: space-between; padding: 30px 40px 0;">
+    <div>
+      <span style="display: block; font-size: 9.5px; font-weight: 500; letter-spacing: .3em; text-transform: uppercase; color: #7E8AA3; margin-bottom: 12px;">Memphis, Tennessee &middot; year seven</span>
+      <h1 style="margin: 0; font-family: 'Frank Ruhl Libre','Times New Roman',serif; font-size: 52px; font-weight: 300; line-height: 1; color: #F0EDE4;">5768 &middot; <span style="color: #E8C87D;">2007&ndash;08</span></h1>
+    </div>
+    <div style="display: flex; gap: 40px; padding-bottom: 6px;">
+      <div style="display: flex; flex-direction: column; gap: 5px;">
+        <span style="font-family: 'Frank Ruhl Libre','Times New Roman',serif; font-size: 26px; font-weight: 400; color: #F0EDE4;">8</span>
+        <span style="font-size: 9.5px; letter-spacing: .18em; text-transform: uppercase; color: #7E8AA3;">Shlichim</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 5px;">
+        <span style="font-family: 'Frank Ruhl Libre','Times New Roman',serif; font-size: 26px; font-weight: 400; color: #F0EDE4;">34</span>
+        <span style="font-size: 9.5px; letter-spacing: .18em; text-transform: uppercase; color: #7E8AA3;">Photographs</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 5px;">
+        <span style="font-family: 'Frank Ruhl Libre','Times New Roman',serif; font-size: 26px; font-weight: 400; color: #F0EDE4;">61</span>
+        <span style="font-size: 9.5px; letter-spacing: .18em; text-transform: uppercase; color: #7E8AA3;">People named</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rosh Kollel and his household -->
+  <div style="position: relative; display: flex; gap: 44px; margin: 38px 40px 0; padding: 28px 30px; background: rgba(13,21,38,.6); border: 1px solid rgba(232,200,125,.14); border-radius: 3px;">
+    <div style="display: flex; gap: 22px; flex-shrink: 0;">
+      <div style="width: 122px;">
+        <div class="pf" style="border-color: rgba(232,200,125,.3);">
+          <svg viewBox="0 0 64 64" width="100%" height="100%"><rect width="64" height="64" fill="#1A2740"></rect><circle cx="32" cy="24" r="10.5" fill="#2A3A5C"></circle><path d="M11 62 a21 21 0 0 1 42 0 z" fill="#2A3A5C"></path></svg>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; justify-content: center; gap: 9px;">
+        <span style="font-size: 9.5px; font-weight: 500; letter-spacing: .26em; text-transform: uppercase; color: #E8C87D;">Rosh Kollel</span>
+        <span style="font-family: 'Frank Ruhl Libre','Times New Roman',serif; font-size: 27px; font-weight: 400; line-height: 1.15; color: #F0EDE4;">Rav Yonatan L.</span>
+        <span style="font-size: 11.5px; font-weight: 300; letter-spacing: .06em; color: #94A2BE;">Memphis 2001&ndash;2009 &middot; before that, shaliach in Melbourne 1998</span>
+        <a href="#" style="font-size: 11.5px; letter-spacing: .06em;">See all nine of his years &rarr;</a>
+      </div>
+    </div>
+
+    <div style="width: 1px; background: rgba(255,255,255,.08);"></div>
+
+    <div style="display: flex; flex-direction: column; gap: 14px; flex-grow: 1;">
+      <span style="font-size: 9.5px; font-weight: 500; letter-spacing: .26em; text-transform: uppercase; color: #7E8AA3;">The household that came with him</span>
+      <div style="display: flex; gap: 16px;">
+        <sc-for list="{{family}}" as="f" hint-placeholder-count="5">
+          <div class="card" style="width: 74px;">
+            <div class="pf">
+              <svg viewBox="0 0 64 64" width="100%" height="100%"><rect width="64" height="64" fill="#16223A"></rect><circle cx="32" cy="25" r="10" fill="#243352"></circle><path d="M12 60 a20 20 0 0 1 40 0 z" fill="#243352"></path></svg>
+            </div>
+            <span class="pn">{{f.name}}</span>
+            <span class="pr">{{f.role}}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+
+  <!-- the cohort -->
+  <div style="position: relative; margin: 34px 40px 0;">
+    <div style="display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,.08); margin-bottom: 20px;">
+      <span style="font-size: 9.5px; font-weight: 500; letter-spacing: .26em; text-transform: uppercase; color: #7E8AA3;">The shlichim of 5768</span>
+      <span style="font-size: 11px; font-weight: 300; color: #94A2BE;">Eight came. Two returned the following year.</span>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 18px;">
+      <sc-for list="{{cohort}}" as="s" hint-placeholder-count="8">
+        <div class="card">
+          <div class="pf">
+            <svg viewBox="0 0 64 64" width="100%" height="100%"><rect width="64" height="64" fill="#16223A"></rect><circle cx="32" cy="25" r="10" fill="#243352"></circle><path d="M12 60 a20 20 0 0 1 40 0 z" fill="#243352"></path></svg>
+          </div>
+          <span class="pn">{{s.name}}</span>
+          <span class="pr">{{s.from}}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- what the year left behind -->
+  <div style="position: relative; margin: 34px 40px 0;">
+    <div style="display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,.08); margin-bottom: 20px;">
+      <span style="font-size: 9.5px; font-weight: 500; letter-spacing: .26em; text-transform: uppercase; color: #7E8AA3;">Photographs from this year</span>
+      <span style="font-size: 11px; font-weight: 300; color: #94A2BE;">34 held &middot; 9 awaiting review</span>
+    </div>
+    <div style="display: flex; gap: 16px;">
+      <sc-for list="{{photos}}" as="p" hint-placeholder-count="4">
+        <div style="position: relative; flex-grow: 1; height: 176px; border-radius: 2px; overflow: hidden; background: #101B2E; border: 1px solid rgba(255,255,255,.07);">
+          <svg viewBox="0 0 240 176" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">
+            <rect width="240" height="176" fill="#101B2E"></rect>
+            <rect y="{{p.band}}" width="240" height="176" fill="#16243C"></rect>
+            <circle cx="{{p.c1}}" cy="96" r="16" fill="#1E3050"></circle>
+            <circle cx="{{p.c2}}" cy="104" r="20" fill="#22375C"></circle>
+            <circle cx="{{p.c3}}" cy="92" r="14" fill="#1B2B48"></circle>
+          </svg>
+          <div style="position: absolute; left: 0; right: 0; bottom: 0; padding: 12px; background: linear-gradient(to top, rgba(7,11,22,.94), rgba(7,11,22,0));">
+            <span style="display: block; font-size: 12px; font-weight: 400; color: #F0EDE4; margin-bottom: 5px;">{{p.event}}</span>
+            <span style="display: block; font-size: 10px; font-weight: 300; letter-spacing: .06em; color: #7E8AA3;">{{p.meta}}</span>
+          </div>
+        </div>
+      </sc-for>
+
+      <!-- the metadata a photograph carries -->
+      <div style="width: 268px; flex-shrink: 0; padding: 18px; box-sizing: border-box; background: rgba(13,21,38,.7); border: 1px solid rgba(232,200,125,.16); border-radius: 3px;">
+        <span style="display: block; font-size: 9.5px; font-weight: 500; letter-spacing: .24em; text-transform: uppercase; color: #E8C87D; margin-bottom: 14px;">Simchat Torah, 5768</span>
+        <div style="display: flex; flex-direction: column; gap: 11px; margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between;"><span style="font-size: 11px; color: #7E8AA3;">Date</span><span style="font-size: 11px; color: #F0EDE4;">4 Oct 2007</span></div>
+          <div style="display: flex; justify-content: space-between;"><span style="font-size: 11px; color: #7E8AA3;">Place</span><span style="font-size: 11px; color: #F0EDE4;">Baron Hirsch</span></div>
+          <div style="display: flex; justify-content: space-between;"><span style="font-size: 11px; color: #7E8AA3;">Sent by</span><span style="font-size: 11px; color: #F0EDE4;">WhatsApp &middot; alum</span></div>
+        </div>
+        <span style="display: block; font-size: 9.5px; font-weight: 500; letter-spacing: .2em; text-transform: uppercase; color: #7E8AA3; margin-bottom: 10px;">People identified &mdash; 12</span>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+          <sc-for list="{{tagged}}" as="t" hint-placeholder-count="6">
+            <span class="chip">{{t.name}}</span>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{
+  "accent": {"editor": "color", "default": "#E8C87D", "options": ["#E8C87D", "#5B8FD6", "#D2E0F2", "#C98F5A"], "section": "Theme"}
+}'>
+class Component extends DCLogic {
+  renderVals() {
+    var FROM = 2001, TO = 2026, SEL = 2007;
+    var yearRail = [];
+    for (var y = FROM; y <= TO; y++) {
+      var d = Math.abs(y - SEL);
+      yearRail.push({
+        label: String(y),
+        size: Math.max(11, 44 - d * 4.5).toFixed(1),
+        op: Math.max(0.2, 1 - d * 0.115).toFixed(2),
+        cls: d === 0 ? 'sel' : ''
+      });
+    }
+
+    var family = [
+      { name: 'Michal L.', role: 'Shlicha' },
+      { name: 'Ayala', role: 'b. 1999' },
+      { name: 'Shaked', role: 'b. 2001' },
+      { name: 'Itai', role: 'b. 2004' },
+      { name: 'Roni', role: 'b. 2007' }
+    ];
+
+    var cohort = [
+      { name: 'Avigail R.', from: 'Migdal Oz' },
+      { name: 'Netanel B.', from: 'Har Etzion' },
+      { name: 'Tamar K.', from: 'Ein HaNatziv' },
+      { name: 'Yoav M.', from: 'Har Etzion' },
+      { name: 'Shira D.', from: 'Migdal Oz' },
+      { name: 'Eitan G.', from: 'Otniel' },
+      { name: 'Noa F.', from: 'Ein HaNatziv' },
+      { name: 'Amit S.', from: 'Har Etzion' }
+    ];
+
+    var photos = [
+      { event: 'Simchat Torah hakafot', meta: '4 Oct 2007 · 12 identified', band: 118, c1: 78,  c2: 128, c3: 172 },
+      { event: 'Community shabbaton',   meta: 'Feb 2008 · 24 identified',  band: 104, c1: 62,  c2: 118, c3: 166 },
+      { event: 'Morning seder',         meta: 'Nov 2007 · 2 identified',   band: 130, c1: 92,  c2: 148, c3: 196 },
+      { event: "Yom Ha'atzmaut",        meta: 'May 2008 · 8 identified',   band: 96,  c1: 70,  c2: 134, c3: 184 }
+    ];
+
+    var tagged = [
+      { name: 'Rav Yonatan L.' }, { name: 'Michal L.' }, { name: 'Avigail R.' },
+      { name: 'Netanel B.' }, { name: 'Yoav M.' }, { name: '+7 more' }
+    ];
+
+    return {
+      accent: this.props.accent ?? '#E8C87D',
+      yearRail: yearRail, family: family, cohort: cohort, photos: photos, tagged: tagged
+    };
+  }
+}
+</script>
+</body>
+</html>

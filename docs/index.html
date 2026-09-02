@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Torah MiTzion 30 — Design Review</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="description" content="Design mockup for the Torah MiTzion 30th anniversary photograph archive. Not a live site.">
+<link rel="icon" href="tmz-mark.png">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@300;400;500;700&family=Heebo:wght@200;300;400;500;600&display=swap">
+<style>
+  :root {
+    --ink: #070B16; --raise: #0D1526; --line: rgba(255,255,255,.09);
+    --ivory: #F0EDE4; --muted: #93A1BD; --dim: #5C6B87; --gold: #E8C87D; --gold-soft: #CDBB96;
+    --serif: 'Frank Ruhl Libre','Times New Roman',serif;
+    --sans: 'Heebo','Helvetica Neue',Arial,sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--ink); color: var(--ivory); font-family: var(--sans);
+         -webkit-font-smoothing: antialiased; }
+  a { color: var(--gold); text-decoration: none; }
+  a:hover { color: #F6E2AE; }
+
+  .glow { position: fixed; inset: 0; pointer-events: none; z-index: 0;
+          background: radial-gradient(ellipse 900px 700px at 50% 30%, rgba(232,200,125,.10) 0%, rgba(91,143,214,.04) 38%, rgba(7,11,22,0) 70%); }
+  .wrap { position: relative; z-index: 1; max-width: 940px; margin: 0 auto; padding: 0 28px 90px; }
+
+  header { display: flex; align-items: center; gap: 15px; padding: 30px 0 0; }
+  header img { width: 44px; height: 41px; display: block; }
+  header .bar { width: 1px; height: 28px; background: var(--line); }
+  header .he { font-family: var(--serif); font-size: 18px; font-weight: 500; line-height: 1; }
+  header .en { font-size: 9.5px; letter-spacing: .26em; text-transform: uppercase; color: var(--muted); line-height: 1; margin-top: 5px; }
+
+  .notice { display: flex; gap: 13px; align-items: flex-start; margin: 40px 0 0; padding: 15px 18px;
+            border: 1px solid rgba(232,200,125,.28); border-radius: 3px; background: rgba(232,200,125,.06); }
+  .notice svg { flex-shrink: 0; margin-top: 1px; }
+  .notice p { margin: 0; font-size: 13px; font-weight: 300; line-height: 1.65; color: var(--gold-soft); }
+  .notice strong { color: var(--gold); font-weight: 500; }
+
+  .hero { padding: 54px 0 0; }
+  .eyebrow { display: flex; align-items: baseline; gap: 12px; margin-bottom: 26px; }
+  .eyebrow .n { font-family: var(--serif); font-size: 52px; font-weight: 300; line-height: .8; color: var(--gold); }
+  .eyebrow .t { font-size: 9.5px; letter-spacing: .28em; text-transform: uppercase; color: var(--muted); line-height: 1.8; }
+  /* pure Hebrew renders right-to-left by itself; forcing direction here would also
+     shove the line to the right edge of an otherwise left-aligned page */
+  .verse { font-family: var(--serif); font-size: 26px; font-weight: 400; margin: 0 0 18px; }
+  h1 { font-family: var(--serif); font-size: 46px; font-weight: 300; line-height: 1.12; letter-spacing: -.01em;
+       margin: 0 0 22px; text-wrap: pretty; }
+  .lede { max-width: 620px; font-size: 15px; font-weight: 300; line-height: 1.75; color: var(--muted);
+          margin: 0 0 34px; text-wrap: pretty; }
+
+  .cta { display: inline-flex; align-items: center; gap: 13px; padding: 16px 26px; border-radius: 3px;
+         background: var(--gold); color: var(--ink); font-size: 13.5px; font-weight: 600; letter-spacing: .06em; }
+  .cta:hover { background: #F6E2AE; color: var(--ink); }
+
+  h2 { font-size: 9.5px; font-weight: 600; letter-spacing: .28em; text-transform: uppercase; color: var(--dim);
+       margin: 66px 0 20px; padding-bottom: 11px; border-bottom: 1px solid var(--line); }
+
+  .boards { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 20px; }
+  .board { padding: 20px; border: 1px solid var(--line); border-radius: 3px; background: var(--raise); }
+  .board h3 { font-family: var(--serif); font-size: 19px; font-weight: 400; margin: 0 0 9px; }
+  .board p { margin: 0; font-size: 12.5px; font-weight: 300; line-height: 1.7; color: var(--muted); text-wrap: pretty; }
+
+  ol { margin: 0; padding: 0; list-style: none; counter-reset: s; }
+  ol li { counter-increment: s; position: relative; padding: 0 0 15px 34px; font-size: 13.5px;
+          font-weight: 300; line-height: 1.7; color: var(--muted); text-wrap: pretty; }
+  ol li::before { content: counter(s); position: absolute; left: 0; top: 0; width: 21px; height: 21px;
+    border: 1px solid rgba(232,200,125,.35); border-radius: 50%; color: var(--gold);
+    font-family: var(--serif); font-size: 11.5px; display: flex; align-items: center; justify-content: center; }
+  ol li b { color: var(--ivory); font-weight: 500; }
+
+  footer { margin-top: 66px; padding-top: 20px; border-top: 1px solid var(--line);
+           display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between;
+           font-size: 11.5px; font-weight: 300; color: var(--dim); }
+
+  @media (max-width: 720px) {
+    h1 { font-size: 33px; }
+    .boards { grid-template-columns: 1fr; }
+    .eyebrow .n { font-size: 42px; }
+  }
+</style>
+</head>
+<body>
+<div class="glow"></div>
+<div class="wrap">
+
+  <header>
+    <img src="tmz-mark.png" alt="Torah MiTzion">
+    <span class="bar"></span>
+    <div>
+      <div class="he">תורה מציון</div>
+      <div class="en">Torah MiTzion</div>
+    </div>
+  </header>
+
+  <div class="notice">
+    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="#E8C87D" stroke-width="1.5" stroke-linecap="round">
+      <circle cx="10" cy="10" r="8"></circle><path d="M10 6v5"></path><path d="M10 14h.01"></path>
+    </svg>
+    <p><strong>This is a design mockup, not a live site and not an official Torah MiTzion page.</strong>
+       Every community, date, photograph count, and person's name on these boards is invented placeholder
+       data used to show the design working. None of it is a record of any real community or person.</p>
+  </div>
+
+  <div class="hero">
+    <div class="eyebrow">
+      <span class="n">30</span>
+      <span class="t">Years<br>1996&ndash;2026</span>
+    </div>
+    <p class="verse">כִּי מִצִּיּוֹן תֵּצֵא תוֹרָה</p>
+    <h1>Thirty years of Torah carried out from&nbsp;Zion &mdash;<br>and every face that carried&nbsp;it.</h1>
+    <p class="lede">A proposed home for the photographs gathered from Torah MiTzion communities across
+      thirty years: a schematic world map re&#8209;centred on Jerusalem, a timeline you fly through year by
+      year, and a roster for every community&#8209;year &mdash; Rosh Kollel, his household, and the full
+      cohort of shlichim who served that year.</p>
+    <a class="cta" href="canvas.html">
+      <span>Open the design</span>
+      <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="#070B16" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10h11"></path><path d="M11 6l4 4-4 4"></path></svg>
+    </a>
+  </div>
+
+  <h2>What is on the canvas</h2>
+  <div class="boards">
+    <div class="board">
+      <h3>The map</h3>
+      <p>Jerusalem at the centre, with a thread of light out to every community. Fly to a region,
+         or click a cluster to open it. Loaded with 49 communities to prove the layout holds.</p>
+    </div>
+    <div class="board">
+      <h3>The same screen, in Hebrew</h3>
+      <p>The whole interface mirrored right&#8209;to&#8209;left &mdash; but the map itself does not mirror.
+         Geography is not a reading direction.</p>
+    </div>
+    <div class="board">
+      <h3>A single year</h3>
+      <p>Memphis, 5768. The Rosh Kollel with his household, the eight shlichim who came that year,
+         and the photographs with the details each one carries.</p>
+    </div>
+  </div>
+
+  <h2>How to look at it</h2>
+  <ol>
+    <li><b>Drag to pan, scroll to zoom.</b> The three boards sit side by side on one canvas, with notes
+        beside each explaining the thinking. A second page, <b>Not chosen</b>, holds two earlier directions
+        kept for the record.</li>
+    <li><b>Press <span style="color:var(--gold)">&#9654;</span> above a board to interact with it.</b>
+        On the map that turns on the flying: choose a region under &ldquo;Fly to&rdquo;, click a numbered
+        cluster to open it, or click any community to load its thirty years into the bottom band.</li>
+    <li><b>Export gives you PNG or PDF</b> if you would rather circulate stills than a link.</li>
+  </ol>
+
+  <h2>Where this is going</h2>
+  <ol>
+    <li><b>This site</b> &mdash; the public map and timeline, plus a back office to manage communities,
+        years, leaders, shlichim and photographs without touching code.</li>
+    <li><b>An upload page</b> where anyone can contribute a photograph, screened automatically before
+        it reaches the archive.</li>
+    <li><b>A WhatsApp number</b> that collects photographs by conversation and asks for the details
+        needed to place them.</li>
+    <li><b>A campaign dashboard</b> showing where the holes are &mdash; which community, which year,
+        still has nothing.</li>
+  </ol>
+
+  <footer>
+    <span>Design review &mdash; prepared for Torah MiTzion</span>
+    <span>Placeholder data throughout &middot; not for circulation as fact</span>
+  </footer>
+
+</div>
+</body>
+</html>

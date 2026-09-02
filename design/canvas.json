@@ -1,0 +1,106 @@
+{
+  "pages": [
+    {
+      "id": "page-1",
+      "name": "The map"
+    },
+    {
+      "id": "page-2",
+      "name": "Not chosen"
+    }
+  ],
+  "artboards": [
+    {
+      "file": "Main.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 1280,
+      "h": 860,
+      "page": "page-1",
+      "title": "English — live, 49 communities",
+      "is_interactive": true
+    },
+    {
+      "file": "Hebrew.dc.html",
+      "x": 1400,
+      "y": 0,
+      "w": 1280,
+      "h": 860,
+      "page": "page-1",
+      "title": "Hebrew — the same screen, mirrored"
+    },
+    {
+      "file": "YearRoster.dc.html",
+      "x": 2800,
+      "y": 0,
+      "w": 1280,
+      "h": 1040,
+      "page": "page-1",
+      "title": "Year screen — the shlichim roster"
+    },
+    {
+      "file": "DirectionB.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 1280,
+      "h": 860,
+      "page": "page-2",
+      "title": "Direction B — The Archive"
+    },
+    {
+      "file": "DirectionC.dc.html",
+      "x": 1400,
+      "y": 0,
+      "w": 1280,
+      "h": 860,
+      "page": "page-2",
+      "title": "Direction C — The Loom"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "unlimited",
+      "x": 0,
+      "y": -620,
+      "w": 760,
+      "page": "page-1",
+      "text": "NOTHING ON THIS MAP IS HAND-PLACED ANY MORE.\n\nYou said don't limit the cities, so I removed every hand-tuned number. Label positions, clusters, the \"fly to\" views — all computed. The back office adds a community with a name, a latitude and a longitude, and the map absorbs it.\n\nThis board is loaded with 49 communities as a STRESS TEST. It is not your community list and I am not claiming Torah MiTzion is in these cities — it is the number I picked to prove the layout survives more than you have.\n\nHow it holds together:\n\nLABELS — eight candidate slots per city, first one that collides with nothing wins. Obstacles are other labels, every city's own dot, and the chrome. At world zoom 27 cities get named and the rest stay dots. Zero label collisions at any zoom; I measured.\n\nCLUSTERS — anything closer than 22 screen pixels cannot be told apart, so it collapses into one ringed marker with a count. Eight clusters at world zoom, holding 19 cities. The selected community never hides inside one.\n\nCLICKING A CLUSTER flies to THAT cluster, not to its region — so the drill-down always terminates. One click resolves every cluster on the board, even Washington/Baltimore.\n\nSTIPPLE — re-samples at every view so dot spacing on screen stays constant. Zoomed-in land looks like land, not a magnified blur."
+    },
+    {
+      "id": "hebrew",
+      "x": 1400,
+      "y": -620,
+      "w": 700,
+      "page": "page-1",
+      "text": "HEBREW IS NOT A TRANSLATION PROBLEM. IT IS A LAYOUT PROBLEM.\n\nCompare the two boards. Five things had to change, and only one of them is words:\n\n1. THE MAP DOES NOT MIRROR. Chrome flips; geography does not. America stays west.\n\n2. THE \"FLY TO\" PANEL STAYS ON THE LEFT — the one element that refuses to mirror. It sits where the MAP is empty, and the empty water is in the Pacific whichever way you read. Mirroring it drops it straight onto Auckland, Sydney and the Gold Coast. Map-adjacent chrome is placed by geography, not by reading direction.\n\n3. LABELS REACH THE OTHER WAY. In English a label reaches east off its dot first; in Hebrew it must reach west, or the eye leaves the dot backwards. Measured on these two boards: 22 east / 4 west in English, 19 west / 7 east in Hebrew. Same algorithm, flipped slot order.\n\n4. THE TIMELINE REVERSES. Oldest year on the right. WORTH CONFIRMING WITH YOU — some Hebrew data design keeps time running left-to-right even in RTL. I have drawn it reversed; say if that is wrong.\n\n5. EVERY NUMBER NEEDS PROTECTING. Years, counts and date ranges inside Hebrew text render backwards without an explicit LTR mark on each one.\n\nAND ONE THING TO SETTLE BEFORE BUILD: Frank Ruhl Libre and Heebo are both native Hebrew-and-Latin faces, so Hebrew and English set as one system for free. NEITHER CARRIES CYRILLIC. Russian needs a second family bound by unicode-range, or Russian silently falls back to a system font and looks like a different website."
+    },
+    {
+      "id": "year-screen",
+      "x": 2800,
+      "y": -340,
+      "w": 460,
+      "page": "page-1",
+      "text": "The year screen.\n\nOne band for the Rosh Kollel WITH his household — the rebbetzin as a shlicha in her own right, the children with birth years so you watch them grow across the photographs.\n\nBelow it the full cohort of that year, each with where they came from. Then the photographs and the metadata one carries.\n\nStill in the older visual language and still hand-placed. It gets rebuilt on the same rules as the map once the schema is settled."
+    },
+    {
+      "id": "sample-data",
+      "x": 0,
+      "y": -140,
+      "w": 760,
+      "page": "page-1",
+      "text": "EVERY NAME, DATE, COUNT AND STATUS ON THESE BOARDS IS INVENTED. Founding years, photo totals, open/closed, Rosh Kollel names — all generated. Nothing here is a claim about your communities or your people."
+    },
+    {
+      "id": "not-chosen",
+      "x": 0,
+      "y": -190,
+      "w": 620,
+      "page": "page-2",
+      "text": "Kept for the record. B argued the record matters more than the spectacle; C collapsed the map and the timeline into one object.\n\nC's idea is still worth stealing for the campaign dashboard in part 4 — one thread per community, a hollow ring for every year we have lost, is exactly the view that answers \"where are the holes?\"."
+    }
+  ],
+  "launch": {
+    "view": "canvas",
+    "page": "page-1"
+  }
+}

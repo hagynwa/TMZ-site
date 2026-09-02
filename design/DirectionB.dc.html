@@ -1,0 +1,156 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Heebo:wght@300;400;500&display=swap">
+  <style>
+    body { margin: 0; background: #F5F1E7; }
+    a { color: #8A3B2E; text-decoration: none; }
+    a:hover { color: #6E2E23; }
+    .entry { display: flex; align-items: baseline; gap: 8px; padding: 7px 0; border-bottom: 1px solid rgba(34,32,27,.09); }
+    .entry .nm { font-family: 'Cormorant Garamond','Times New Roman',serif; font-size: 17px; font-weight: 500; color: #22201B; white-space: nowrap; }
+    .entry .rule { flex-grow: 1; border-bottom: 1px dotted rgba(34,32,27,.28); transform: translateY(-4px); }
+    .entry .yr { font-family: 'Heebo','Helvetica Neue',Arial,sans-serif; font-size: 10.5px; letter-spacing: .1em; color: #6B655A; white-space: nowrap; }
+    .entry .ct { font-family: 'Cormorant Garamond','Times New Roman',serif; font-size: 15px; font-weight: 400; color: #8A3B2E; width: 34px; text-align: right; }
+    .entry.closed .nm { color: #6B655A; font-style: italic; font-weight: 400; }
+    .colhead { display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 9px; margin-bottom: 4px; border-bottom: 1.5px solid #22201B; }
+    .colhead span:first-child { font-family: 'Heebo','Helvetica Neue',Arial,sans-serif; font-size: 9.5px; font-weight: 500; letter-spacing: .24em; text-transform: uppercase; color: #22201B; }
+    .colhead span:last-child { font-family: 'Cormorant Garamond','Times New Roman',serif; font-size: 15px; color: #6B655A; }
+  </style>
+</helmet>
+
+<div style="position: relative; width: 1280px; height: 860px; overflow: hidden; background: #F5F1E7; font-family: 'Heebo','Helvetica Neue',Arial,sans-serif; padding: 34px 56px; box-sizing: border-box;">
+
+  <!-- masthead -->
+  <div style="display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 15px; border-bottom: 2px solid #22201B;">
+    <div style="display: flex; align-items: baseline; gap: 14px;">
+      <span style="font-family: 'Cormorant Garamond','Times New Roman',serif; font-size: 22px; font-weight: 600; letter-spacing: .04em; color: #22201B;">Torah MiTzion</span>
+      <span style="font-size: 9.5px; font-weight: 500; letter-spacing: .3em; text-transform: uppercase; color: #6B655A;">The Thirty&nbsp;Year Archive</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 26px;">
+      <a href="#" style="font-size: 11.5px; letter-spacing: .12em; color: #22201B;">Index</a>
+      <a href="#" style="font-size: 11.5px; letter-spacing: .12em; color: #6B655A;">Shlichim</a>
+      <a href="#" style="font-size: 11.5px; letter-spacing: .12em; color: #6B655A;">Chronicle</a>
+      <a href="#" style="font-size: 11.5px; font-weight: 500; letter-spacing: .1em; color: #F5F1E7; background: #8A3B2E; padding: 8px 15px;">Contribute a photograph</a>
+    </div>
+  </div>
+
+  <!-- opening spread -->
+  <div style="display: flex; gap: 56px; padding: 42px 0 38px; border-bottom: 1px solid rgba(34,32,27,.16);">
+    <div style="width: 620px;">
+      <p style="margin: 0 0 20px; font-family: 'Cormorant Garamond','Times New Roman',serif; font-size: 25px; font-weight: 400; color: #8A3B2E; direction: rtl;">כִּי מִצִּיּוֹן תֵּצֵא תוֹרָה</p>
+      <h1 style="margin: 0 0 22px; font-family: 'Cormorant Garamond','Times New Roman',serif; font-size: 62px; font-weight: 300; line-height: 1.06; letter-spacing: -0.015em; color: #22201B; text-wrap: pretty;">Twenty&#8209;four communities.<br><span style="font-style: italic; font-weight: 400;">One&nbsp;continuous</span> thirty&nbsp;years.</h1>
+      <p style="margin: 0; max-width: 470px; font-family: 'Cormorant Garamond','Times New Roman',serif; font-size: 19px; font-weight: 400; line-height: 1.62; color: #45413A; text-wrap: pretty;">Since 1996 more than a thousand shlichim have left Israel for a year, or three, or a lifetime. This is the record of where they went and who they became &mdash; assembled from the photographs of the communities themselves.</p>
+    </div>
+
+    <!-- region rose -->
+    <div style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; gap: 18px;">
+      <svg viewBox="0 0 260 260" width="252" height="252">
+        <circle cx="130" cy="130" r="122" fill="none" stroke="#22201B" stroke-width="1.2"></circle>
+        <circle cx="130" cy="130" r="92" fill="none" stroke="rgba(34,32,27,.3)" stroke-width="0.6"></circle>
+        <circle cx="130" cy="130" r="58" fill="none" stroke="rgba(34,32,27,.3)" stroke-width="0.6"></circle>
+        <path d="{{rosePath}}" stroke="rgba(34,32,27,.22)" stroke-width="0.6" fill="none"></path>
+        <path d="{{roseDots}}" stroke="#8A3B2E" stroke-width="5.5" stroke-linecap="round" fill="none"></path>
+        <path d="M130 122 L131.6 128.4 L138 130 L131.6 131.6 L130 138 L128.4 131.6 L122 130 L128.4 128.4 Z" fill="#22201B"></path>
+        <text x="130" y="22" text-anchor="middle" font-family="Heebo, Arial, sans-serif" font-size="8.5" letter-spacing="2.4" fill="#6B655A">EUROPE</text>
+        <text x="248" y="134" text-anchor="end" font-family="Heebo, Arial, sans-serif" font-size="8.5" letter-spacing="2.4" fill="#6B655A">ASIA</text>
+        <text x="130" y="252" text-anchor="middle" font-family="Heebo, Arial, sans-serif" font-size="8.5" letter-spacing="2.4" fill="#6B655A">AFRICA</text>
+        <text x="12" y="134" font-family="Heebo, Arial, sans-serif" font-size="8.5" letter-spacing="2.4" fill="#6B655A">AMERICAS</text>
+      </svg>
+      <p style="margin: 0; max-width: 220px; text-align: center; font-family: 'Cormorant Garamond','Times New Roman',serif; font-style: italic; font-size: 15px; line-height: 1.6; color: #6B655A;">Each mark set at its true bearing and distance from Jerusalem.</p>
+    </div>
+  </div>
+
+  <!-- the index -->
+  <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 40px; padding-top: 30px;">
+    <sc-for list="{{columns}}" as="col" hint-placeholder-count="4">
+      <div style="display: flex; flex-direction: column;">
+        <div class="colhead">
+          <span>{{col.title}}</span>
+          <span>{{col.count}}</span>
+        </div>
+        <sc-for list="{{col.rows}}" as="row" hint-placeholder-count="7">
+          <div class="entry {{row.cls}}">
+            <span class="nm">{{row.name}}</span>
+            <span class="rule"></span>
+            <span class="yr">{{row.span}}</span>
+            <span class="ct">{{row.photos}}</span>
+          </div>
+        </sc-for>
+      </div>
+    </sc-for>
+  </div>
+
+  <!-- colophon -->
+  <div style="position: absolute; left: 56px; right: 56px; bottom: 26px; display: flex; align-items: baseline; justify-content: space-between; padding-top: 14px; border-top: 1px solid rgba(34,32,27,.16);">
+    <span style="font-family: 'Cormorant Garamond','Times New Roman',serif; font-style: italic; font-size: 16px; color: #6B655A;">9,412 photographs catalogued &middot; 2,318 years still unaccounted for</span>
+    <span style="font-size: 10px; letter-spacing: .22em; text-transform: uppercase; color: #8A3B2E;">Send a photograph by WhatsApp &mdash; [NUMBER]</span>
+  </div>
+
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{
+  "accent": {"editor": "color", "default": "#8A3B2E", "options": ["#8A3B2E", "#2E5A55", "#7A5C1F", "#3A4A7A"], "section": "Theme"}
+}'>
+class Component extends DCLogic {
+  renderVals() {
+    var rose = [
+      [9300,316],[9000,320],[10100,321],[9900,317],[9700,313],[10800,315],[10600,308],
+      [10200,305],[9500,302],[9200,298],[12400,295],[10400,249],[12100,243],[11900,239],
+      [3600,313],[2740,315],[2300,323],[2660,7],[6400,194],[7200,200],[4100,103],
+      [11700,112],[13800,108],[14200,102]
+    ];
+    var rosePath = '', roseDots = '';
+    for (var b = 0; b < 360; b += 45) {
+      var st = b * Math.PI / 180;
+      rosePath += 'M130,130 L' + (130 + 122 * Math.sin(st)).toFixed(1) + ',' + (130 - 122 * Math.cos(st)).toFixed(1) + ' ';
+    }
+    for (var i = 0; i < rose.length; i++) {
+      var r = rose[i][0] * (118 / 15000), t = rose[i][1] * Math.PI / 180;
+      var x = (130 + r * Math.sin(t)).toFixed(1), y = (130 - r * Math.cos(t)).toFixed(1);
+      roseDots += 'M' + x + ',' + y + ' L' + x + ',' + y + ' ';
+    }
+
+    var columns = [
+      { title: 'North America', count: 10, rows: [
+        ['Toronto','1997—','1,204',''], ['Montreal','1999—','886',''],
+        ['Chicago','1999—','1,032',''], ['Washington','2000—','640',''],
+        ['Memphis','2001—','412',''], ['New York','2003—','755',''],
+        ['Kansas City','2005—','388',''], ['Nashville','2008—','296',''],
+        ['Cleveland','2001–2014','174','closed'], ['Detroit','2004–2011','96','closed']
+      ]},
+      { title: 'Latin America', count: 4, rows: [
+        ['Buenos Aires','1998—','918',''], ['Montevideo','2000—','470',''],
+        ['Mexico City','2002—','512',''], ['São Paulo','2006–2019','233','closed']
+      ]},
+      { title: 'Europe & Asia', count: 5, rows: [
+        ['Moscow','1996–2022','604','closed'], ['Warsaw','2007—','318',''],
+        ['Mumbai','2010—','207',''], ['Munich','2012—','264',''],
+        ['London','2009–2018','142','closed']
+      ]},
+      { title: 'Africa & Oceania', count: 5, rows: [
+        ['Cape Town','1996—','1,340',''], ['Sydney','1998—','722',''],
+        ['Melbourne','2000—','655',''], ['Johannesburg','2003—','430',''],
+        ['Perth','2004—','294','']
+      ]}
+    ];
+
+    var out = columns.map(function (c) {
+      return { title: c.title, count: c.count, rows: c.rows.map(function (r) {
+        return { name: r[0], span: r[1], photos: r[2], cls: r[3] };
+      })};
+    });
+
+    return { accent: this.props.accent ?? '#8A3B2E', rosePath: rosePath, roseDots: roseDots, columns: out };
+  }
+}
+</script>
+</body>
+</html>

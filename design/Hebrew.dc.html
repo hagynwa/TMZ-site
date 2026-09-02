@@ -1,0 +1,430 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@300;400;500;700&family=Heebo:wght@200;300;400;500;600&display=swap">
+  <style>
+    body { margin: 0; background: #070B16; }
+    a { color: #E8C87D; text-decoration: none; }
+    a:hover { color: #F6E2AE; }
+    .node { position: absolute; width: 0; height: 0; }
+    .dot { position: absolute; left: 50%; top: 50%; border-radius: 50%; }
+    .is-active .dot { width: 6.5px; height: 6.5px; margin: -3.25px 0 0 -3.25px;
+      background: #E8C87D; box-shadow: 0 0 0 2.5px rgba(232,200,125,.12), 0 0 12px 2px rgba(232,200,125,.45); }
+    .is-alumni .dot { width: 6px; height: 6px; margin: -3px 0 0 -3px;
+      background: #0B1220; border: 1px solid #5A7096; box-shadow: 0 0 7px rgba(90,112,150,.5); }
+    .is-sel .dot { width: 11px; height: 11px; margin: -5.5px 0 0 -5.5px;
+      background: #FBEFCF; border: 0; box-shadow: 0 0 0 5px rgba(246,226,174,.15), 0 0 0 13px rgba(246,226,174,.06), 0 0 30px 6px rgba(246,226,174,.6); }
+    .clus { position: absolute; left: 50%; top: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px;
+      border-radius: 50%; border: 1px solid rgba(232,200,125,.5); background: rgba(232,200,125,.1);
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Heebo','Helvetica Neue',Arial,sans-serif; font-size: 10.5px; font-weight: 500; color: #E8C87D;
+      box-shadow: 0 0 16px rgba(232,200,125,.3); }
+    /* Hebrew is never uppercased and takes far less tracking than Latin caps */
+    .lbl { position: absolute; white-space: nowrap; font-family: 'Heebo','Helvetica Neue',Arial,sans-serif;
+      font-size: 11px; font-weight: 400; letter-spacing: .01em; color: #93A1BD;
+      text-shadow: 0 0 7px rgba(7,11,22,.95), 0 0 3px rgba(7,11,22,1); }
+    .is-active .lbl { color: #CDBB96; }
+    .is-sel .lbl { color: #FBEFCF; font-weight: 500; font-size: 13.5px; }
+    .rgn { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 6px 0;
+      font-size: 12.5px; font-weight: 300; color: #7E8AA3; border-bottom: 1px solid rgba(255,255,255,.05); }
+    .rgn.on { color: #F0EDE4; font-weight: 400; }
+    .rgn span:last-child { font-family: 'Frank Ruhl Libre','Times New Roman',serif; font-size: 13px; color: #5C6B87; direction: ltr; }
+    .rgn.on span:last-child { color: #E8C87D; }
+    .ybar { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 6px; flex-grow: 1; }
+    .bar { width: 100%; max-width: 11px; border-radius: 1.5px; background: #B4934F; }
+    .bar.hole { background: transparent; border: 1px dashed #7B5F86; box-sizing: border-box; }
+    .ylab { font-family: 'Heebo','Helvetica Neue',Arial,sans-serif; font-size: 8.5px; color: #5C6B87; height: 10px; direction: ltr; }
+  </style>
+</helmet>
+
+<div dir="rtl" style="position: relative; width: 1280px; height: 860px; overflow: hidden; background: #070B16; font-family: 'Heebo','Helvetica Neue',Arial,sans-serif;">
+
+  <!-- THE MAP DOES NOT MIRROR. Geography is not a reading direction. -->
+  <div dir="ltr" style="position: absolute; left: 0; top: 66px; width: 1280px; height: 638px; overflow: hidden;">
+    <div style="position: absolute; left: 0; top: -66px; width: 1280px; height: 860px;">
+      <div style="position: absolute; left: 640px; top: 388px; width: 1240px; height: 1240px; margin: -620px 0 0 -620px; border-radius: 50%; background: radial-gradient(circle, rgba(232,200,125,.13) 0%, rgba(91,143,214,.05) 30%, rgba(7,11,22,0) 62%);"></div>
+
+      <svg viewBox="0 0 1280 860" width="1280" height="860" style="position: absolute; left: 0; top: 0;">
+        <path d="{{landPath}}" stroke="#33518A" stroke-width="2.15" stroke-linecap="round" fill="none"></path>
+        <path d="{{arcPath}}" stroke="#E8C87D" stroke-width="0.8" fill="none" opacity="0.16" stroke-linecap="round"></path>
+        <path d="{{selArc}}" stroke="#FBEFCF" stroke-width="1.5" fill="none" opacity="0.9" stroke-linecap="round"></path>
+      </svg>
+
+      <div style="position: absolute; left: 640px; top: 388px; width: 0; height: 0;">
+        <svg viewBox="0 0 44 44" width="44" height="44" style="position: absolute; left: -22px; top: -22px;">
+          <circle cx="22" cy="22" r="18" fill="none" stroke="#F6E2AE" stroke-width="0.6" opacity="0.3"></circle>
+          <path d="M22 5 L24.6 19.4 L39 22 L24.6 24.6 L22 39 L19.4 24.6 L5 22 L19.4 19.4 Z" fill="#FBEFCF"></path>
+        </svg>
+        <span style="position: absolute; left: 0; top: 27px; transform: translateX(-50%); white-space: nowrap; font-size: 12px; font-weight: 500; color: #FBEFCF; text-shadow: 0 0 8px rgba(7,11,22,.9);">ירושלים</span>
+      </div>
+
+      <sc-for list="{{nodes}}" as="n" hint-placeholder-count="30">
+        <div class="node {{n.cls}}" style="left: {{n.x}}px; top: {{n.y}}px;">
+          <div class="dot"></div>
+          <sc-if value="{{n.labelled}}" hint-placeholder-val="{{true}}">
+            <span class="lbl" dir="rtl" style="left: {{n.dx}}px; top: {{n.dy}}px; transform: {{n.tf}};">{{n.name}}</span>
+          </sc-if>
+        </div>
+      </sc-for>
+
+      <sc-for list="{{clusters}}" as="c" hint-placeholder-count="8">
+        <div class="node" style="left: {{c.x}}px; top: {{c.y}}px;"><div class="clus">{{c.count}}</div></div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- masthead: mirrors completely -->
+  <div style="position: absolute; left: 0; top: 0; width: 1280px; height: 66px; display: flex; align-items: center; justify-content: space-between; padding: 0 40px; box-sizing: border-box; border-bottom: 1px solid rgba(255,255,255,.05); background: rgba(7,11,22,.72); backdrop-filter: blur(8px);">
+    <div style="display: flex; align-items: center; gap: 14px;">
+      <img src="tmz-mark.png" alt="תורה מציון" style="width: 41px; height: 38px; display: block;">
+      <span style="width: 1px; height: 26px; background: rgba(255,255,255,.14);"></span>
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <span style="font-family: 'Frank Ruhl Libre','Times New Roman',serif; font-size: 19px; font-weight: 500; line-height: 1; color: #F0EDE4;">תורה מציון</span>
+        <span style="font-size: 11px; line-height: 1; color: #93A1BD;">שלושים שנה</span>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 30px;">
+      <a href="#" style="font-size: 13px; color: #F0EDE4;">מפה</a>
+      <a href="#" style="font-size: 13px; color: #93A1BD;">קהילות</a>
+      <a href="#" style="font-size: 13px; color: #93A1BD;">שליחים</a>
+      <a href="#" style="font-size: 13px; color: #93A1BD;">אודות</a>
+      <span dir="ltr" style="font-size: 11px; letter-spacing: .12em; color: #5C6B87; border: 1px solid rgba(255,255,255,.12); border-radius: 2px; padding: 4px 8px;">עב &middot; EN &middot; RU &middot; FR &middot; DE &middot; ES</span>
+      <a href="#" style="font-size: 13px; font-weight: 500; color: #070B16; background: #E8C87D; border-radius: 2px; padding: 9px 18px;">הוסיפו תמונות</a>
+    </div>
+  </div>
+
+  <!-- the promise: mirrors completely -->
+  <div style="position: absolute; left: 40px; top: 88px; right: 40px; display: flex; align-items: flex-start; justify-content: space-between;">
+    <div style="display: flex; align-items: flex-start; gap: 26px;">
+      <div style="display: flex; align-items: baseline; gap: 10px;">
+        <span dir="ltr" style="font-family: 'Frank Ruhl Libre','Times New Roman',serif; font-size: 54px; font-weight: 300; line-height: .82; color: #E8C87D;">30</span>
+        <span style="font-size: 11px; color: #93A1BD; line-height: 1.7; text-align: right;">שנה<br><span dir="ltr">1996&ndash;2026</span></span>
+      </div>
+      <div style="width: 1px; height: 62px; background: rgba(255,255,255,.1);"></div>
+      <div style="display: flex; flex-direction: column; gap: 9px; padding-top: 2px;">
+        <p style="margin: 0; font-family: 'Frank Ruhl Libre','Times New Roman',serif; font-size: 27px; font-weight: 400; line-height: 1.2; color: #F0EDE4;">כִּי מִצִּיּוֹן תֵּצֵא תוֹרָה</p>
+        <p style="margin: 0; max-width: 400px; font-size: 14px; font-weight: 300; line-height: 1.7; color: #93A1BD; text-wrap: pretty;">שלושים שנה של תורה שיצאה מציון &mdash; וכל הפנים שנשאו אותה. עזרו לנו למצוא את התמונות שעדיין חסרות.</p>
+      </div>
+    </div>
+    <div style="display: flex; gap: 38px; padding-top: 4px;">
+      <div style="display: flex; flex-direction: column; gap: 5px; align-items: flex-start;">
+        <span dir="ltr" style="font-family: 'Frank Ruhl Libre','Times New Roman',serif; font-size: 27px; font-weight: 400; color: #F0EDE4;">{{stats.total}}</span>
+        <span style="font-size: 11px; color: #7E8AA3;">קהילות</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 5px; align-items: flex-start;">
+        <span dir="ltr" style="font-family: 'Frank Ruhl Libre','Times New Roman',serif; font-size: 27px; font-weight: 400; color: #F0EDE4;">{{stats.open}}</span>
+        <span style="font-size: 11px; color: #7E8AA3;">פעילות היום</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 5px; align-items: flex-start;">
+        <span dir="ltr" style="font-family: 'Frank Ruhl Libre','Times New Roman',serif; font-size: 27px; font-weight: 400; color: #E8C87D;">{{stats.photos}}</span>
+        <span style="font-size: 11px; color: #7E8AA3;">תמונות</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- The one thing that does NOT mirror with the text: this panel sits where the MAP
+       has room, and the map's empty water is in the Pacific whichever way you read. -->
+  <div style="position: absolute; left: 40px; top: 444px; width: 196px;">
+    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 9px;">
+      <span style="width: 6.5px; height: 6.5px; border-radius: 50%; background: #E8C87D; box-shadow: 0 0 10px rgba(232,200,125,.6);"></span>
+      <span style="font-size: 12px; font-weight: 300; color: #93A1BD;">פעילה &mdash; <span dir="ltr">{{stats.open}}</span></span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 9px;">
+      <span style="width: 6px; height: 6px; border-radius: 50%; border: 1px solid #5A7096; margin: 0 .25px;"></span>
+      <span style="font-size: 12px; font-weight: 300; color: #93A1BD;">בוגרת &mdash; <span dir="ltr">{{stats.closed}}</span></span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
+      <span style="width: 13px; height: 13px; border-radius: 50%; border: 1px solid rgba(232,200,125,.5); background: rgba(232,200,125,.1); margin: 0 -3px;"></span>
+      <span style="font-size: 12px; font-weight: 300; color: #93A1BD;">כמה יחד &mdash; התקרבו</span>
+    </div>
+    <span style="display: block; font-size: 11px; font-weight: 500; color: #5C6B87; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,.1);">טוסו אל</span>
+    <sc-for list="{{regions}}" as="r" hint-placeholder-count="5">
+      <div class="rgn {{r.cls}}"><span>{{r.label}}</span><span>{{r.count}}</span></div>
+    </sc-for>
+  </div>
+
+  <!-- bottom band: mirrors, and the timeline runs right to left with it -->
+  <div style="position: absolute; left: 0; bottom: 0; width: 1280px; height: 156px; display: flex; align-items: center; gap: 34px; padding: 0 40px; box-sizing: border-box; background: rgba(8,13,25,.93); border-top: 1px solid rgba(232,200,125,.16); backdrop-filter: blur(16px);">
+    <div style="width: 244px; flex-shrink: 0; display: flex; flex-direction: column; gap: 7px;">
+      <div style="display: flex; align-items: center; gap: 9px;">
+        <span style="font-size: 11px; font-weight: 500; color: #7E8AA3;">צפון אמריקה</span>
+        <span style="width: 3px; height: 3px; border-radius: 50%; background: #E8C87D;"></span>
+        <span style="font-size: 11px; font-weight: 500; color: #E8C87D;">פעילה</span>
+      </div>
+      <h2 style="margin: 0; font-family: 'Frank Ruhl Libre','Times New Roman',serif; font-size: 34px; font-weight: 400; line-height: 1; color: #F0EDE4;">ממפיס</h2>
+      <div style="display: flex; align-items: center; gap: 10px; margin-top: 5px;">
+        <div style="width: 27px; height: 27px; border-radius: 50%; background: #1A2740; border: 1px solid rgba(232,200,125,.25); flex-shrink: 0;"></div>
+        <span style="font-size: 12px; font-weight: 300; line-height: 1.45; color: #93A1BD;">הרב יונתן ל.<br><span style="color: #5C6B87;">ראש הכולל <span dir="ltr">2001&ndash;2009</span></span></span>
+      </div>
+    </div>
+
+    <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 9px;">
+      <div style="display: flex; align-items: baseline; justify-content: space-between;">
+        <span style="font-size: 11px; font-weight: 500; color: #7E8AA3;">תמונות שנאספו, לפי שנה</span>
+        <span style="font-size: 12px; font-weight: 300; color: #93A1BD;"><span dir="ltr">{{sel.total}}</span> נאספו &middot; <span style="color: #C08FD0;"><span dir="ltr">{{sel.holes}}</span> שנים עדיין ריקות</span></span>
+      </div>
+      <div style="display: flex; align-items: flex-end; gap: 5px; height: 58px;">
+        <sc-for list="{{sel.years}}" as="m" hint-placeholder-count="26">
+          <div class="ybar">
+            <div class="bar {{m.cls}}" style="height: {{m.h}}px;"></div>
+            <span class="ylab">{{m.tick}}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <a href="#" style="flex-shrink: 0; display: flex; align-items: center; gap: 11px; padding: 14px 20px; background: rgba(232,200,125,.1); border: 1px solid rgba(232,200,125,.32); border-radius: 2px; font-size: 13px; font-weight: 500; color: #E8C87D;">
+      <span>טוסו לאורך השנים</span>
+      <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="#E8C87D" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M16 10H5"></path><path d="M9 6l-4 4 4 4"></path></svg>
+    </a>
+  </div>
+
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() {
+    var LON = [[-180,-160,0,16],[-160,-70,16,400],[-70,-45,400,456],[-45,0,456,640],
+               [0,15,640,702],[15,122,702,1172],[122,180,1172,1280]];
+    var LAT = [[68,60,178,196],[60,25,196,434],[25,-10,434,546],[-10,-40,546,706],[-40,-45,706,726]];
+
+    function px(lon) {
+      var l = lon - 35.22;
+      while (l < -180) l += 360;
+      while (l > 180) l -= 360;
+      for (var i = 0; i < LON.length; i++) { var b = LON[i];
+        if (l >= b[0] && l <= b[1]) return b[2] + (l - b[0]) / (b[1] - b[0]) * (b[3] - b[2]); }
+      return 640;
+    }
+    function py(lat) {
+      for (var i = 0; i < LAT.length; i++) { var b = LAT[i];
+        if (lat <= b[0] && lat >= b[1]) return b[2] + (b[0] - lat) / (b[0] - b[1]) * (b[3] - b[2]); }
+      return lat > 68 ? 178 : 726;
+    }
+    function ilon(x) {
+      for (var i = 0; i < LON.length; i++) { var b = LON[i];
+        if (x >= b[2] && x <= b[3]) return b[0] + (x - b[2]) / (b[3] - b[2]) * (b[1] - b[0]) + 35.22; }
+      return 35.22;
+    }
+    function ilat(y) {
+      for (var i = 0; i < LAT.length; i++) { var b = LAT[i];
+        if (y >= b[2] && y <= b[3]) return b[0] - (y - b[2]) / (b[3] - b[2]) * (b[0] - b[1]); }
+      return 0;
+    }
+
+    var LAND = [
+      [[-168,65],[-164,68],[-156,71],[-148,70],[-136,69],[-128,70],[-120,70],[-112,69],[-104,69],[-96,72],[-90,73],[-82,74],[-76,73],[-70,70],[-64,66],[-60,60],[-56,54],[-53,48],[-60,46],[-66,45],[-70,42],[-74,39],[-76,35],[-81,31],[-80,26],[-83,29],[-88,30],[-94,29],[-97,26],[-97,22],[-91,19],[-87,21],[-88,16],[-92,15],[-96,16],[-101,17],[-106,21],[-110,24],[-114,28],[-117,32],[-121,35],[-124,40],[-124,46],[-125,49],[-131,53],[-136,58],[-142,60],[-150,59],[-158,56],[-162,59],[-166,62]],
+      [[-45,60],[-38,63],[-30,68],[-22,70],[-19,74],[-22,78],[-30,82],[-42,83],[-55,82],[-64,80],[-70,77],[-66,72],[-58,66],[-52,62]],
+      [[-81,7],[-77,9],[-72,12],[-66,11],[-61,10],[-55,6],[-51,4],[-50,0],[-46,-1],[-41,-3],[-35,-5],[-35,-9],[-38,-13],[-40,-20],[-43,-23],[-48,-26],[-53,-33],[-57,-37],[-62,-39],[-63,-44],[-66,-48],[-69,-52],[-74,-53],[-73,-46],[-75,-40],[-73,-33],[-71,-25],[-70,-18],[-76.5,-14],[-80.5,-7],[-81,-3],[-80,1],[-78,4]],
+      [[-92,15],[-88,16],[-84,11],[-79,9],[-76,7],[-79,6],[-84,9],[-88,13],[-92,14]],
+      [[-17,15],[-16,20],[-13,25],[-9,30],[-6,35],[0,36],[10,37],[19,33],[25,32],[31,31],[35,28],[38,20],[43,12],[48,12],[51,11],[45,5],[41,-1],[40,-8],[40,-15],[35,-20],[33,-26],[31,-32],[18,-35],[15,-29],[13,-23],[12,-16],[9,-5],[8,4],[3,6],[-4,5],[-8,4],[-13,9],[-16,12]],
+      [[-10,44],[-9,39],[-6,36],[-1,37],[3,40],[4,43],[8,44],[12,45],[16,42],[19,40],[23,38],[26,40],[28,41],[30,45],[34,45],[38,46],[40,50],[42,54],[38,58],[30,60],[32,64],[28,66],[22,68],[25,71],[19,69],[15,68],[12,65],[11,60],[13,56],[10,54],[7,54],[5,53],[4,51],[0,49],[-2,48],[-4,48],[-5,46]],
+      [[-10,52],[-8,55],[-6,57],[-4,58],[-2,58],[-1,55],[0,53],[1,51],[-2,50],[-5,50],[-8,51]],
+      [[36,52],[38,48],[44,45],[52,44],[60,43],[66,41],[72,39],[78,36],[84,31],[90,29],[96,27],[99,23],[103,22],[105,19],[108,21],[110,20],[113,22],[117,23],[120,26],[122,31],[121,37],[125,39],[129,42],[133,45],[137,49],[141,52],[143,55],[141,59],[147,61],[155,62],[163,61],[170,63],[178,65],[180,68],[172,71],[160,72],[148,74],[136,75],[124,74],[112,76],[100,77],[88,77],[76,74],[68,73],[60,71],[52,69],[46,68],[42,66],[38,64],[36,60],[38,55]],
+      [[68,24],[70,21],[73,17],[75,12],[78,8],[80,11],[82,17],[85,20],[88,22],[91,22],[92,26],[88,27],[82,27],[76,29],[71,27],[68,25]],
+      [[34,30],[38,31],[43,30],[48,30],[53,26],[57,24],[59,21],[55,17],[50,14],[45,12],[43,13],[39,17],[36,23],[34,27]],
+      [[26,40],[28,42],[34,42],[40,41],[44,40],[48,38],[50,36],[48,32],[47,30],[44,29],[40,30],[36,29],[34,29],[34,33],[35,36],[32,36],[29,36],[27,37]],
+      [[97,21],[99,16],[100,12],[100,7],[103,2],[105,1],[107,3],[109,6],[107,11],[109,15],[107,20],[104,22],[100,21]],
+      [[95,6],[99,4],[104,-2],[106,-6],[103,-6],[98,0],[94,4]],
+      [[105,-6],[110,-7],[114,-8],[114,-9],[108,-9],[105,-7]],
+      [[109,2],[114,4],[119,2],[118,-2],[116,-4],[110,-3],[108,0]],
+      [[119,1],[123,0],[125,-2],[123,-5],[120,-4],[119,-2]],
+      [[131,-1],[137,-2],[144,-4],[150,-7],[147,-10],[141,-9],[135,-6],[131,-4]],
+      [[120,18],[123,17],[126,10],[126,6],[122,6],[120,10],[118,15]],
+      [[129,32],[133,33],[137,34],[141,36],[142,40],[145,43],[144,45],[141,43],[140,39],[138,36],[135,34],[131,33]],
+      [[43,-12],[47,-14],[50,-16],[49,-22],[46,-25],[44,-22],[43,-16]],
+      [[113,-22],[114,-26],[115,-31],[118,-35],[123,-34],[129,-32],[134,-33],[138,-35],[141,-38],[146,-39],[150,-37],[154,-31],[154,-26],[149,-21],[146,-19],[142,-11],[137,-12],[132,-11],[128,-15],[124,-16],[122,-18],[117,-21]],
+      [[145,-41],[148,-41],[148,-43],[145,-43]],
+      [[166,-46],[170,-44],[174,-41],[177,-38],[175,-36],[172,-40],[168,-44]],
+      [[80,9],[82,8],[82,6],[80,6]],
+      [[-24,65],[-19,66],[-14,66],[-14,64],[-20,63]],
+      [[-85,22],[-78,21],[-74,20],[-77,23],[-83,23]]
+    ];
+
+    function inLand(lon, lat) {
+      for (var p = 0; p < LAND.length; p++) {
+        var poly = LAND[p], inside = false;
+        for (var i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+          var xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1];
+          if ((yi > lat) !== (yj > lat) && lon < (xj - xi) * (lat - yi) / (yj - yi) + xi) inside = !inside;
+        }
+        if (inside) return true;
+      }
+      return false;
+    }
+
+    // he · lon · lat · region · founded · closed
+    var CITIES = [
+      ['טורונטו',-79.38,43.65,'na',1997,0],        ['מונטריאול',-73.57,45.50,'na',1999,0],
+      ['שיקגו',-87.63,41.88,'na',1999,0],          ['וושינגטון',-77.04,38.91,'na',2000,0],
+      ['קליבלנד',-81.69,41.50,'na',2001,2014],     ['ממפיס',-90.05,35.15,'na',2001,0],
+      ['ניו יורק',-74.01,40.71,'na',2003,0],        ['דטרויט',-83.05,42.33,'na',2004,2011],
+      ['קנזס סיטי',-94.58,39.10,'na',2005,0],       ['סנט לואיס',-90.20,38.63,'na',2006,0],
+      ['אטלנטה',-84.39,33.75,'na',2007,0],          ['נאשוויל',-86.78,36.16,'na',2008,0],
+      ['בוקה רטון',-80.09,26.37,'na',2009,0],       ['לוס אנג׳לס',-118.24,34.05,'na',2010,0],
+      ['דנוור',-104.99,39.74,'na',2012,0],          ['ונקובר',-123.12,49.28,'na',2014,0],
+      ['בולטימור',-76.61,39.29,'na',2015,0],        ['יוסטון',-95.37,29.76,'na',2017,0],
+
+      ['בואנוס איירס',-58.38,-34.60,'la',1998,0],   ['מונטבידאו',-56.16,-34.90,'la',2000,0],
+      ['מקסיקו סיטי',-99.13,19.43,'la',2002,0],     ['סאו פאולו',-46.63,-23.55,'la',2006,2019],
+      ['סנטיאגו',-70.65,-33.46,'la',2008,0],        ['פנמה סיטי',-79.52,8.98,'la',2011,0],
+      ['לימה',-77.04,-12.05,'la',2013,0],           ['ריו דה ז׳ניירו',-43.17,-22.91,'la',2015,2021],
+
+      ['מוסקבה',37.62,55.75,'eu',1996,2022],        ['קייב',30.52,50.45,'eu',2001,2022],
+      ['אנטוורפן',4.40,51.22,'eu',2003,2016],       ['איסטנבול',28.98,41.01,'eu',2004,2015],
+      ['פריז',2.35,48.86,'eu',2005,0],              ['ורשה',21.01,52.23,'eu',2007,0],
+      ['לונדון',-0.13,51.51,'eu',2009,2018],        ['מומבאי',72.88,19.08,'eu',2010,0],
+      ['וינה',16.37,48.21,'eu',2011,0],             ['מינכן',11.58,48.14,'eu',2012,0],
+      ['ברלין',13.40,52.52,'eu',2013,0],            ['ריגה',24.11,56.95,'eu',2014,0],
+      ['מילאנו',9.19,45.46,'eu',2016,0],            ['הונג קונג',114.17,22.32,'eu',2018,0],
+      ['טוקיו',139.69,35.69,'eu',2020,0],
+
+      ['קייפטאון',18.42,-33.93,'oc',1996,0],        ['סידני',151.21,-33.87,'oc',1998,0],
+      ['מלבורן',144.96,-37.81,'oc',2000,0],         ['יוהנסבורג',28.05,-26.20,'oc',2003,0],
+      ['פרת׳',115.86,-31.95,'oc',2004,0],           ['דרבן',31.02,-29.86,'oc',2009,0],
+      ['אוקלנד',174.76,-36.85,'oc',2016,0],         ['גולד קוסט',153.43,-28.02,'oc',2019,0]
+    ];
+
+    var SEL = 'ממפיס';
+    var REGION_HE = { na: 'צפון אמריקה', la: 'אמריקה הלטינית', eu: 'אירופה ואסיה', oc: 'אפריקה ואוקיאניה' };
+
+    var landPath = '';
+    for (var my = 178; my <= 726; my += 7) {
+      var lat = ilat(my);
+      for (var mx = 0; mx <= 1280; mx += 7) {
+        if (inLand(ilon(mx), lat)) landPath += 'M' + mx + ',' + my.toFixed(1) + 'h0';
+      }
+    }
+
+    var JX = 640, JY = 388, pts = [], arcPath = '', selArc = '', selCity = null;
+    for (var k = 0; k < CITIES.length; k++) {
+      var c = CITIES[k], x = px(c[1]), y = py(c[2]);
+      if (c[0] === SEL) selCity = c;
+      pts.push({ c: c, name: c[0], x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10,
+                 isSel: c[0] === SEL, open: !c[5], founded: c[4] });
+      var dx = x - JX, dy = y - JY, len = Math.sqrt(dx * dx + dy * dy) || 1;
+      var sg = dx >= 0 ? -1 : 1, bulge = len * 0.17;
+      var qx = ((JX + x) / 2 + sg * (-dy / len) * bulge).toFixed(1);
+      var qy = ((JY + y) / 2 + sg * (dx / len) * bulge).toFixed(1);
+      var seg = 'M' + JX + ',' + JY + ' Q' + qx + ',' + qy + ' ' + x.toFixed(1) + ',' + y.toFixed(1) + ' ';
+      if (c[0] === SEL) selArc = seg; else arcPath += seg;
+    }
+
+    pts.sort(function (a, b) {
+      if (a.isSel !== b.isSel) return a.isSel ? -1 : 1;
+      if (a.open !== b.open) return a.open ? -1 : 1;
+      return a.founded - b.founded;
+    });
+    var groups = [];
+    for (var p1 = 0; p1 < pts.length; p1++) {
+      var pt = pts[p1], joined = false;
+      if (!pt.isSel) {
+        for (var g2 = 0; g2 < groups.length; g2++) {
+          var gr = groups[g2];
+          if (gr[0].isSel) continue;
+          if (Math.hypot(pt.x - gr[0].x, pt.y - gr[0].y) < 22) { gr.push(pt); joined = true; break; }
+        }
+      }
+      if (!joined) groups.push([pt]);
+    }
+
+    // RIGHT-TO-LEFT LABEL PREFERENCE. In English a label reaches east off its dot first;
+    // in Hebrew it must reach west first, or the eye leaves the dot the wrong way.
+    var SLOTS = [
+      [-12, 0, 'e'], [12, 0, 's'], [0, -14, 'm'], [0, 15, 'm'],
+      [-11, -10, 'e'], [-11, 11, 'e'], [11, -10, 's'], [11, 11, 's']
+    ];
+    var taken = [
+      [0, 0, 1280, 72], [30, 78, 740, 200], [860, 78, 1252, 156],
+      [28, 436, 250, 700], [0, 700, 1280, 860]
+    ];
+    for (var d = 0; d < groups.length; d++) {
+      var gp = groups[d][0];
+      taken.push([gp.x - 9, gp.y - 9, gp.x + 9, gp.y + 9]);
+    }
+    function clear(r) {
+      for (var i = 0; i < taken.length; i++) {
+        var t = taken[i];
+        if (r[0] < t[2] && r[2] > t[0] && r[1] < t[3] && r[3] > t[1]) return false;
+      }
+      return true;
+    }
+
+    var nodes = [], clusters = [];
+    for (var gi = 0; gi < groups.length; gi++) {
+      var grp = groups[gi], head = grp[0];
+      if (grp.length > 1) { clusters.push({ x: head.x, y: head.y, count: grp.length }); continue; }
+      var per = head.isSel ? 7.8 : 6.4, h = head.isSel ? 16 : 13;
+      var w = head.name.length * per, placed = null;
+      for (var si = 0; si < SLOTS.length; si++) {
+        var sl = SLOTS[si], lx = head.x + sl[0], ly = head.y + sl[1];
+        var x0 = sl[2] === 's' ? lx : sl[2] === 'e' ? lx - w : lx - w / 2;
+        var rect = [x0, ly - h / 2, x0 + w, ly + h / 2];
+        if (rect[0] < 4 || rect[2] > 1276) continue;
+        if (clear(rect)) { placed = { sl: sl, rect: rect }; break; }
+      }
+      if (placed) taken.push(placed.rect);
+      nodes.push({
+        name: head.name, x: head.x, y: head.y, labelled: !!placed,
+        dx: placed ? placed.sl[0] : 0, dy: placed ? placed.sl[1] : 0,
+        tf: !placed ? 'none' : placed.sl[2] === 'e' ? 'translate(-100%, -50%)'
+              : placed.sl[2] === 'm' ? 'translate(-50%, -50%)' : 'translateY(-50%)',
+        cls: head.isSel ? 'is-sel' : head.open ? 'is-active' : 'is-alumni'
+      });
+    }
+
+    function historyOf(c) {
+      var seed = 0;
+      for (var i = 0; i < c[0].length; i++) seed = (seed * 31 + c[0].charCodeAt(i)) % 1000000;
+      var end = c[5] || 2026, rows = [], peak = 1, total = 0, holes = 0;
+      for (var y = c[4]; y <= end; y++) {
+        seed = (seed * 1103515245 + 12345) % 2147483648;
+        var r = seed / 2147483648, mat = (y - 1996) / 30;
+        var n = r < 0.30 - mat * 0.22 ? 0 : Math.round(6 + r * 34 + mat * 16);
+        if (n > peak) peak = n;
+        if (n === 0) holes++; else total += n;
+        rows.push({ y: y, n: n });
+      }
+      return { rows: rows, peak: peak, total: total, holes: holes };
+    }
+
+    var regions = [{ label: 'העולם כולו', count: CITIES.length, cls: 'on' }];
+    ['na', 'la', 'eu', 'oc'].forEach(function (key) {
+      regions.push({ label: REGION_HE[key], cls: '',
+        count: CITIES.filter(function (c) { return c[3] === key; }).length });
+    });
+
+    var openCount = CITIES.filter(function (c) { return !c[5]; }).length;
+    var grand = 0;
+    for (var t2 = 0; t2 < CITIES.length; t2++) grand += historyOf(CITIES[t2]).total;
+    var hist = historyOf(selCity);
+
+    // The timeline runs with the text: oldest year on the RIGHT.
+    var yearRows = hist.rows.slice().reverse().map(function (o) {
+      return {
+        tick: (o.y % 5 === 0) ? String(o.y).slice(2) : '',
+        h: o.n === 0 ? 13 : Math.max(4, Math.round(o.n / hist.peak * 46)),
+        cls: o.n === 0 ? 'hole' : ''
+      };
+    });
+
+    return {
+      landPath: landPath, arcPath: arcPath, selArc: selArc,
+      nodes: nodes, clusters: clusters, regions: regions,
+      stats: { total: CITIES.length, open: openCount, closed: CITIES.length - openCount,
+               photos: grand.toLocaleString('en-US') },
+      sel: { total: hist.total.toLocaleString('en-US'), holes: hist.holes, years: yearRows }
+    };
+  }
+}
+</script>
+</body>
+</html>
