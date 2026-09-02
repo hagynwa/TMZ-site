@@ -1,0 +1,262 @@
+/* Six languages, one fallback chain: requested locale -> English -> the key itself.
+   That chain is the whole point — with 49 communities and six locales, most fields
+   will be missing most of the time, and the site has to stay usable anyway. */
+
+const LANGS = [
+  { id: 'en', label: 'EN', name: 'English',  dir: 'ltr' },
+  { id: 'he', label: 'עב', name: 'עברית',    dir: 'rtl' },
+  { id: 'ru', label: 'RU', name: 'Русский',  dir: 'ltr' },
+  { id: 'fr', label: 'FR', name: 'Français', dir: 'ltr' },
+  { id: 'de', label: 'DE', name: 'Deutsch',  dir: 'ltr' },
+  { id: 'es', label: 'ES', name: 'Español',  dir: 'ltr' }
+];
+
+const STRINGS = {
+  en: {
+    'nav.map': 'Map', 'nav.communities': 'Communities', 'nav.shlichim': 'Shlichim', 'nav.about': 'About',
+    'cta.add': 'Add photographs', 'cta.fly': 'Fly through the years', 'cta.back': 'All communities',
+    'cta.addYear': 'Add to this year', 'cta.send': 'Send a photograph', 'cta.choose': 'Choose a photograph',
+    'brand.thirty': 'Thirty years',
+    'hero.line': 'Thirty years of Torah carried out from Zion — and every face that carried it.',
+    'hero.sub': 'Help us find the photographs still missing.',
+    'u.years': 'Years', 'u.communities': 'Communities', 'u.open': 'Open today', 'u.photographs': 'Photographs',
+    'u.shlichim': 'Shlichim', 'u.peopleNamed': 'People named', 'u.identified': 'identified',
+    'legend.open': 'Open', 'legend.alumni': 'Alumni', 'legend.cluster': 'Several — zoom to open',
+    'legend.note': 'A schematic world, re-centred on Jerusalem. Distances are drawn for legibility, not to scale.',
+    'fly.to': 'Fly to', 'fly.world': 'The whole world',
+    'region.na': 'North America', 'region.la': 'Latin America',
+    'region.eu': 'Europe & Asia', 'region.oc': 'Africa & Oceania',
+    'band.byYear': 'Photographs held, by year', 'band.held': 'held',
+    'band.empty': 'years still empty', 'band.emptyOne': 'year still empty', 'band.covered': 'every year covered',
+    'st.open': 'Open', 'st.closed': 'Closed',
+    'yr.rosh': 'Rosh Kollel', 'yr.household': 'The household that came with him',
+    'yr.cohort': 'The shlichim of', 'yr.photos': 'Photographs from this year',
+    'yr.seeAll': 'See all his years', 'yr.before': 'before that, shaliach in',
+    'yr.date': 'Date', 'yr.place': 'Place', 'yr.sentBy': 'Sent by', 'yr.whatsapp': 'WhatsApp',
+    'yr.peopleIdent': 'People identified', 'yr.awaiting': 'awaiting review', 'yr.more': 'more',
+    'yr.empty': 'We hold no photograph from this year.',
+    'yr.emptySub': 'We know who was here. If you were too, or your parents were, we would like to see it.',
+    'yr.yearN': 'year', 'yr.returned': 'came. Two returned the following year.',
+    'con.title': 'Send us a photograph', 'con.lede': 'Any photograph from any Torah MiTzion community, any year. We will find where it belongs.',
+    'con.drop': 'Drop a photograph here, or choose one',
+    'con.f1': 'Which community?', 'con.f2': 'Which year?', 'con.f3': 'Who is in it?',
+    'con.f4': 'What was the occasion?', 'con.opt': 'optional',
+    'con.screened': 'Every photograph is checked automatically before it reaches the archive.',
+    'con.wa': 'Or send it by WhatsApp',
+    'foot.mock': 'Design mockup — every name, date and count is invented placeholder data.',
+    'foot.canvas': 'Design canvas'
+  },
+  he: {
+    'nav.map': 'מפה', 'nav.communities': 'קהילות', 'nav.shlichim': 'שליחים', 'nav.about': 'אודות',
+    'cta.add': 'הוסיפו תמונות', 'cta.fly': 'טוסו לאורך השנים', 'cta.back': 'כל הקהילות',
+    'cta.addYear': 'הוסיפו לשנה זו', 'cta.send': 'שלחו תמונה', 'cta.choose': 'בחרו תמונה',
+    'brand.thirty': 'שלושים שנה',
+    'hero.line': 'שלושים שנה של תורה שיצאה מציון — וכל הפנים שנשאו אותה.',
+    'hero.sub': 'עזרו לנו למצוא את התמונות שעדיין חסרות.',
+    'u.years': 'שנים', 'u.communities': 'קהילות', 'u.open': 'פעילות היום', 'u.photographs': 'תמונות',
+    'u.shlichim': 'שליחים', 'u.peopleNamed': 'אנשים מזוהים', 'u.identified': 'מזוהים',
+    'legend.open': 'פעילה', 'legend.alumni': 'בוגרת', 'legend.cluster': 'כמה יחד — התקרבו',
+    'legend.note': 'מפה סכמטית, ממורכזת בירושלים. המרחקים משורטטים לשם קריאוּת, לא לפי קנה מידה.',
+    'fly.to': 'טוסו אל', 'fly.world': 'העולם כולו',
+    'region.na': 'צפון אמריקה', 'region.la': 'אמריקה הלטינית',
+    'region.eu': 'אירופה ואסיה', 'region.oc': 'אפריקה ואוקיאניה',
+    'band.byYear': 'תמונות שנאספו, לפי שנה', 'band.held': 'נאספו',
+    'band.empty': 'שנים עדיין ריקות', 'band.emptyOne': 'שנה עדיין ריקה', 'band.covered': 'כל השנים מכוסות',
+    'st.open': 'פעילה', 'st.closed': 'נסגרה',
+    'yr.rosh': 'ראש הכולל', 'yr.household': 'המשפחה שהגיעה איתו',
+    'yr.cohort': 'שליחי שנת', 'yr.photos': 'תמונות מהשנה הזו',
+    'yr.seeAll': 'לכל שנותיו', 'yr.before': 'לפני כן, שליח ב־',
+    'yr.date': 'תאריך', 'yr.place': 'מקום', 'yr.sentBy': 'נשלח על ידי', 'yr.whatsapp': 'ווטסאפ',
+    'yr.peopleIdent': 'אנשים שזוהו', 'yr.awaiting': 'ממתינות לבדיקה', 'yr.more': 'נוספים',
+    'yr.empty': 'אין בידינו אף תמונה מהשנה הזו.',
+    'yr.emptySub': 'אנחנו יודעים מי היה כאן. אם גם אתם הייתם, או הורייכם, נשמח לראות.',
+    'yr.yearN': 'שנה', 'yr.returned': 'הגיעו. שניים חזרו גם בשנה שלאחר מכן.',
+    'con.title': 'שלחו לנו תמונה', 'con.lede': 'כל תמונה מכל קהילה של תורה מציון, מכל שנה. אנחנו נמצא את מקומה.',
+    'con.drop': 'גררו לכאן תמונה, או בחרו אחת',
+    'con.f1': 'איזו קהילה?', 'con.f2': 'איזו שנה?', 'con.f3': 'מי בתמונה?',
+    'con.f4': 'מה היה האירוע?', 'con.opt': 'לא חובה',
+    'con.screened': 'כל תמונה נבדקת אוטומטית לפני שהיא מגיעה לארכיון.',
+    'con.wa': 'או שלחו בווטסאפ',
+    'foot.mock': 'אב־טיפוס עיצובי — כל שם, תאריך ומספר הם נתוני דמה.',
+    'foot.canvas': 'קנבס העיצוב'
+  },
+  ru: {
+    'nav.map': 'Карта', 'nav.communities': 'Общины', 'nav.shlichim': 'Шлихим', 'nav.about': 'О нас',
+    'cta.add': 'Добавить фотографии', 'cta.fly': 'Пролететь по годам', 'cta.back': 'Все общины',
+    'cta.addYear': 'Добавить к этому году', 'cta.send': 'Отправить фотографию', 'cta.choose': 'Выбрать фотографию',
+    'brand.thirty': 'Тридцать лет',
+    'hero.line': 'Тридцать лет Торы, вышедшей из Сиона, — и каждое лицо, что несло её.',
+    'hero.sub': 'Помогите нам найти недостающие фотографии.',
+    'u.years': 'Лет', 'u.communities': 'Общин', 'u.open': 'Действуют сегодня', 'u.photographs': 'Фотографий',
+    'u.shlichim': 'Шлихим', 'u.peopleNamed': 'Людей названо', 'u.identified': 'опознано',
+    'legend.open': 'Действует', 'legend.alumni': 'Закрыта', 'legend.cluster': 'Несколько — приблизьте',
+    'legend.note': 'Схематичная карта с центром в Иерусалиме. Расстояния показаны ради читаемости, не в масштабе.',
+    'fly.to': 'Перелететь', 'fly.world': 'Весь мир',
+    'region.na': 'Северная Америка', 'region.la': 'Латинская Америка',
+    'region.eu': 'Европа и Азия', 'region.oc': 'Африка и Океания',
+    'band.byYear': 'Собранные фотографии по годам', 'band.held': 'собрано',
+    'band.empty': 'лет всё ещё пусты', 'band.emptyOne': 'год всё ещё пуст', 'band.covered': 'каждый год покрыт',
+    'st.open': 'Действует', 'st.closed': 'Закрыта',
+    'yr.rosh': 'Рош колель', 'yr.household': 'Семья, приехавшая с ним',
+    'yr.cohort': 'Шлихим года', 'yr.photos': 'Фотографии этого года',
+    'yr.seeAll': 'Все его годы', 'yr.before': 'до этого — шалиах в',
+    'yr.date': 'Дата', 'yr.place': 'Место', 'yr.sentBy': 'Прислано', 'yr.whatsapp': 'WhatsApp',
+    'yr.peopleIdent': 'Опознано людей', 'yr.awaiting': 'на проверке', 'yr.more': 'ещё',
+    'yr.empty': 'У нас нет ни одной фотографии этого года.',
+    'yr.emptySub': 'Мы знаем, кто здесь был. Если вы были тоже — или ваши родители, — мы хотели бы это увидеть.',
+    'yr.yearN': 'год', 'yr.returned': 'приехали. Двое вернулись и на следующий год.',
+    'con.title': 'Пришлите нам фотографию', 'con.lede': 'Любая фотография из любой общины Тора МиЦион, любого года. Мы найдём ей место.',
+    'con.drop': 'Перетащите фотографию сюда или выберите файл',
+    'con.f1': 'Какая община?', 'con.f2': 'Какой год?', 'con.f3': 'Кто на снимке?',
+    'con.f4': 'Что за событие?', 'con.opt': 'необязательно',
+    'con.screened': 'Каждая фотография проверяется автоматически, прежде чем попасть в архив.',
+    'con.wa': 'Или пришлите через WhatsApp',
+    'foot.mock': 'Дизайн-макет — все имена, даты и числа вымышлены.',
+    'foot.canvas': 'Дизайн-холст'
+  },
+  fr: {
+    'nav.map': 'Carte', 'nav.communities': 'Communautés', 'nav.shlichim': 'Chlihim', 'nav.about': 'À propos',
+    'cta.add': 'Ajouter des photographies', 'cta.fly': 'Parcourir les années', 'cta.back': 'Toutes les communautés',
+    'cta.addYear': 'Ajouter à cette année', 'cta.send': 'Envoyer une photographie', 'cta.choose': 'Choisir une photographie',
+    'brand.thirty': 'Trente ans',
+    'hero.line': 'Trente ans de Torah sortie de Sion — et chaque visage qui l’a portée.',
+    'hero.sub': 'Aidez-nous à retrouver les photographies qui manquent encore.',
+    'u.years': 'Ans', 'u.communities': 'Communautés', 'u.open': 'Ouvertes aujourd’hui', 'u.photographs': 'Photographies',
+    'u.shlichim': 'Chlihim', 'u.peopleNamed': 'Personnes nommées', 'u.identified': 'identifiées',
+    'legend.open': 'Ouverte', 'legend.alumni': 'Ancienne', 'legend.cluster': 'Plusieurs — zoomez pour ouvrir',
+    'legend.note': 'Un monde schématique, recentré sur Jérusalem. Les distances sont dessinées pour la lisibilité, non à l’échelle.',
+    'fly.to': 'Voler vers', 'fly.world': 'Le monde entier',
+    'region.na': 'Amérique du Nord', 'region.la': 'Amérique latine',
+    'region.eu': 'Europe et Asie', 'region.oc': 'Afrique et Océanie',
+    'band.byYear': 'Photographies conservées, par année', 'band.held': 'conservées',
+    'band.empty': 'années encore vides', 'band.emptyOne': 'année encore vide', 'band.covered': 'chaque année couverte',
+    'st.open': 'Ouverte', 'st.closed': 'Fermée',
+    'yr.rosh': 'Roch Kollel', 'yr.household': 'La famille venue avec lui',
+    'yr.cohort': 'Les chlihim de', 'yr.photos': 'Photographies de cette année',
+    'yr.seeAll': 'Voir toutes ses années', 'yr.before': 'auparavant, chaliah à',
+    'yr.date': 'Date', 'yr.place': 'Lieu', 'yr.sentBy': 'Envoyée par', 'yr.whatsapp': 'WhatsApp',
+    'yr.peopleIdent': 'Personnes identifiées', 'yr.awaiting': 'en attente de vérification', 'yr.more': 'de plus',
+    'yr.empty': 'Nous ne conservons aucune photographie de cette année.',
+    'yr.emptySub': 'Nous savons qui était là. Si vous y étiez aussi, ou vos parents, nous aimerions le voir.',
+    'yr.yearN': 'année', 'yr.returned': 'sont venus. Deux sont revenus l’année suivante.',
+    'con.title': 'Envoyez-nous une photographie', 'con.lede': 'N’importe quelle photographie, de n’importe quelle communauté Torah MiTzion, de n’importe quelle année. Nous trouverons sa place.',
+    'con.drop': 'Déposez une photographie ici, ou choisissez-en une',
+    'con.f1': 'Quelle communauté ?', 'con.f2': 'Quelle année ?', 'con.f3': 'Qui figure dessus ?',
+    'con.f4': 'Quelle était l’occasion ?', 'con.opt': 'facultatif',
+    'con.screened': 'Chaque photographie est vérifiée automatiquement avant d’entrer dans les archives.',
+    'con.wa': 'Ou envoyez-la par WhatsApp',
+    'foot.mock': 'Maquette de conception — chaque nom, date et chiffre est fictif.',
+    'foot.canvas': 'Canevas de conception'
+  },
+  de: {
+    'nav.map': 'Karte', 'nav.communities': 'Gemeinden', 'nav.shlichim': 'Schlichim', 'nav.about': 'Über uns',
+    'cta.add': 'Fotografien hinzufügen', 'cta.fly': 'Durch die Jahre fliegen', 'cta.back': 'Alle Gemeinden',
+    'cta.addYear': 'Zu diesem Jahr hinzufügen', 'cta.send': 'Fotografie senden', 'cta.choose': 'Fotografie wählen',
+    'brand.thirty': 'Dreißig Jahre',
+    'hero.line': 'Dreißig Jahre Tora, ausgegangen von Zion — und jedes Gesicht, das sie trug.',
+    'hero.sub': 'Helfen Sie uns, die noch fehlenden Fotografien zu finden.',
+    'u.years': 'Jahre', 'u.communities': 'Gemeinden', 'u.open': 'Heute offen', 'u.photographs': 'Fotografien',
+    'u.shlichim': 'Schlichim', 'u.peopleNamed': 'Personen benannt', 'u.identified': 'erkannt',
+    'legend.open': 'Offen', 'legend.alumni': 'Ehemalig', 'legend.cluster': 'Mehrere — zum Öffnen zoomen',
+    'legend.note': 'Eine schematische Welt, neu zentriert auf Jerusalem. Entfernungen sind der Lesbarkeit halber gezeichnet, nicht maßstabsgetreu.',
+    'fly.to': 'Fliegen nach', 'fly.world': 'Die ganze Welt',
+    'region.na': 'Nordamerika', 'region.la': 'Lateinamerika',
+    'region.eu': 'Europa & Asien', 'region.oc': 'Afrika & Ozeanien',
+    'band.byYear': 'Vorhandene Fotografien, nach Jahr', 'band.held': 'vorhanden',
+    'band.empty': 'Jahre noch leer', 'band.emptyOne': 'Jahr noch leer', 'band.covered': 'jedes Jahr abgedeckt',
+    'st.open': 'Offen', 'st.closed': 'Geschlossen',
+    'yr.rosh': 'Rosch Kollel', 'yr.household': 'Der Haushalt, der mit ihm kam',
+    'yr.cohort': 'Die Schlichim des Jahres', 'yr.photos': 'Fotografien aus diesem Jahr',
+    'yr.seeAll': 'Alle seine Jahre ansehen', 'yr.before': 'zuvor Schaliach in',
+    'yr.date': 'Datum', 'yr.place': 'Ort', 'yr.sentBy': 'Gesendet von', 'yr.whatsapp': 'WhatsApp',
+    'yr.peopleIdent': 'Erkannte Personen', 'yr.awaiting': 'zur Prüfung', 'yr.more': 'weitere',
+    'yr.empty': 'Wir besitzen keine Fotografie aus diesem Jahr.',
+    'yr.emptySub': 'Wir wissen, wer hier war. Wenn Sie es auch waren, oder Ihre Eltern, würden wir es gerne sehen.',
+    'yr.yearN': 'Jahr', 'yr.returned': 'kamen. Zwei kehrten im folgenden Jahr zurück.',
+    'con.title': 'Senden Sie uns eine Fotografie', 'con.lede': 'Jede Fotografie aus jeder Torah-MiTzion-Gemeinde, aus jedem Jahr. Wir finden ihren Platz.',
+    'con.drop': 'Fotografie hierher ziehen oder eine wählen',
+    'con.f1': 'Welche Gemeinde?', 'con.f2': 'Welches Jahr?', 'con.f3': 'Wer ist darauf?',
+    'con.f4': 'Welcher Anlass war es?', 'con.opt': 'optional',
+    'con.screened': 'Jede Fotografie wird automatisch geprüft, bevor sie ins Archiv gelangt.',
+    'con.wa': 'Oder per WhatsApp senden',
+    'foot.mock': 'Design-Mockup — jeder Name, jedes Datum und jede Zahl ist erfunden.',
+    'foot.canvas': 'Design-Canvas'
+  },
+  es: {
+    'nav.map': 'Mapa', 'nav.communities': 'Comunidades', 'nav.shlichim': 'Shlijim', 'nav.about': 'Acerca de',
+    'cta.add': 'Añadir fotografías', 'cta.fly': 'Volar por los años', 'cta.back': 'Todas las comunidades',
+    'cta.addYear': 'Añadir a este año', 'cta.send': 'Enviar una fotografía', 'cta.choose': 'Elegir una fotografía',
+    'brand.thirty': 'Treinta años',
+    'hero.line': 'Treinta años de Torá salida de Sión — y cada rostro que la llevó.',
+    'hero.sub': 'Ayúdanos a encontrar las fotografías que aún faltan.',
+    'u.years': 'Años', 'u.communities': 'Comunidades', 'u.open': 'Abiertas hoy', 'u.photographs': 'Fotografías',
+    'u.shlichim': 'Shlijim', 'u.peopleNamed': 'Personas nombradas', 'u.identified': 'identificadas',
+    'legend.open': 'Abierta', 'legend.alumni': 'Antigua', 'legend.cluster': 'Varias — acerca para abrir',
+    'legend.note': 'Un mundo esquemático, recentrado en Jerusalén. Las distancias se dibujan por legibilidad, no a escala.',
+    'fly.to': 'Volar a', 'fly.world': 'El mundo entero',
+    'region.na': 'América del Norte', 'region.la': 'América Latina',
+    'region.eu': 'Europa y Asia', 'region.oc': 'África y Oceanía',
+    'band.byYear': 'Fotografías conservadas, por año', 'band.held': 'conservadas',
+    'band.empty': 'años aún vacíos', 'band.emptyOne': 'año aún vacío', 'band.covered': 'todos los años cubiertos',
+    'st.open': 'Abierta', 'st.closed': 'Cerrada',
+    'yr.rosh': 'Rosh Kolel', 'yr.household': 'La familia que vino con él',
+    'yr.cohort': 'Los shlijim de', 'yr.photos': 'Fotografías de este año',
+    'yr.seeAll': 'Ver todos sus años', 'yr.before': 'antes, shaliaj en',
+    'yr.date': 'Fecha', 'yr.place': 'Lugar', 'yr.sentBy': 'Enviada por', 'yr.whatsapp': 'WhatsApp',
+    'yr.peopleIdent': 'Personas identificadas', 'yr.awaiting': 'en revisión', 'yr.more': 'más',
+    'yr.empty': 'No conservamos ninguna fotografía de este año.',
+    'yr.emptySub': 'Sabemos quién estuvo aquí. Si tú también estuviste, o tus padres, nos gustaría verlo.',
+    'yr.yearN': 'año', 'yr.returned': 'vinieron. Dos regresaron al año siguiente.',
+    'con.title': 'Envíanos una fotografía', 'con.lede': 'Cualquier fotografía de cualquier comunidad de Torá MiTzión, de cualquier año. Nosotros encontraremos su lugar.',
+    'con.drop': 'Arrastra una fotografía aquí, o elige una',
+    'con.f1': '¿Qué comunidad?', 'con.f2': '¿Qué año?', 'con.f3': '¿Quién aparece?',
+    'con.f4': '¿Cuál fue la ocasión?', 'con.opt': 'opcional',
+    'con.screened': 'Cada fotografía se revisa automáticamente antes de llegar al archivo.',
+    'con.wa': 'O envíala por WhatsApp',
+    'foot.mock': 'Maqueta de diseño — cada nombre, fecha y cifra es inventada.',
+    'foot.canvas': 'Lienzo de diseño'
+  }
+};
+
+/* The verse is scripture; it is never translated, only transliterated communities are. */
+const VERSE = 'כִּי מִצִּיּוֹן תֵּצֵא תוֹרָה';
+
+let LANG = 'en';
+
+function setLang(id) {
+  if (!STRINGS[id]) id = 'en';
+  LANG = id;
+  try { localStorage.setItem('tmz.lang', id); } catch (e) { /* private window */ }
+  const meta = LANGS.find(l => l.id === id);
+  document.documentElement.lang = id;
+  document.documentElement.dir = meta.dir;
+}
+
+function initLang() {
+  let saved = null;
+  try { saved = localStorage.getItem('tmz.lang'); } catch (e) { /* ignore */ }
+  const url = new URLSearchParams(location.search).get('lang');
+  setLang(url || saved || (navigator.language || 'en').slice(0, 2));
+}
+
+function isRTL() { return LANGS.find(l => l.id === LANG).dir === 'rtl'; }
+
+/* requested -> English -> the key, so a missing translation degrades instead of blanking */
+function t(key) {
+  const here = STRINGS[LANG] && STRINGS[LANG][key];
+  if (here) return here;
+  const en = STRINGS.en[key];
+  return en || key;
+}
+
+/* Same chain for content fields, which arrive as { en: '...', he: '...' } */
+function tf(field) {
+  if (field == null) return '';
+  if (typeof field === 'string') return field;
+  return field[LANG] || field.en || Object.values(field)[0] || '';
+}
+
+/* Numbers must not pick up the surrounding RTL run */
+function num(n) {
+  return '<span dir="ltr">' + n.toLocaleString('en-US') + '</span>';
+}
