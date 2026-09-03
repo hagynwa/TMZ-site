@@ -288,6 +288,18 @@ h1,h2,h3 { margin: 0; font-weight: 400; }
 .fields input, .fields select { font: inherit; font-size: 14px; color: var(--ivory); background: var(--raise);
         border: 1px solid var(--line2); border-radius: 2px; padding: 11px 12px; }
 .fields input:focus, .fields select:focus { outline: none; border-color: rgba(232,200,125,.6); }
+.drop.over { background: rgba(232,200,125,.12); border-color: var(--gold); }
+.drop img { max-width: 100%; }
+.consent { display: flex; align-items: flex-start; gap: 11px; margin: 0 0 22px;
+           font-size: 13px; font-weight: 300; line-height: 1.6; color: var(--muted);
+           cursor: pointer; }
+.consent input { flex: 0 0 auto; margin-top: 3px; width: 16px; height: 16px; accent-color: var(--gold); }
+.up-result { padding: 16px 18px; border-radius: 3px; margin-bottom: 22px; font-weight: 300; line-height: 1.6; }
+.up-result strong { display: block; font-weight: 500; }
+.up-result p { margin: 6px 0 0; font-size: 12.5px; }
+.up-result.ok { background: rgba(232,200,125,.08); border: 1px solid rgba(232,200,125,.35); color: var(--gold); }
+.up-result.dup { background: rgba(147,161,189,.08); border: 1px solid rgba(147,161,189,.3); color: var(--muted); }
+.up-result.no { background: rgba(192,143,208,.08); border: 1px solid rgba(192,143,208,.4); color: var(--warn); }
 .screened { display: flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 300;
             color: var(--dim2); margin: 0 0 26px; }
 .wa { margin: 18px 0 0; font-size: 12.5px; color: var(--dim2); }

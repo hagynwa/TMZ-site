@@ -398,34 +398,132 @@ function communityView(id, year) {
 
 function contributeView() {
   const opts = COMMUNITIES.slice().sort((a, b) => tf(a.name).localeCompare(tf(b.name)))
-    .map(c => `<option>${esc(tf(c.name))}</option>`).join('');
+    .map(c => `<option value="${esc(c.id)}">${esc(tf(c.name))}</option>`).join('');
   return `
   <div class="cn">
     <span class="eyebrow gold">${esc(t('cta.add'))}</span>
     <h1>${esc(t('con.title'))}</h1>
     <p class="lede">${esc(t('con.lede'))}</p>
 
-    <label class="drop">
-      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#E8C87D" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M21 16l-5-5-5 5-2-2-6 5"/></svg>
-      <span>${esc(t('con.drop'))}</span>
-      <span class="btn-gold sm">${esc(t('cta.choose'))}</span>
+    <div id="upResult"></div>
+
+    <label class="drop" id="drop">
+      <input type="file" id="file" accept="image/jpeg,image/png,image/webp,image/heic" hidden>
+      <div id="dropIdle">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#E8C87D" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M21 16l-5-5-5 5-2-2-6 5"/></svg>
+        <span>${esc(t('con.drop'))}</span>
+        <span class="btn-gold sm">${esc(t('cta.choose'))}</span>
+      </div>
+      <div id="dropPreview" hidden></div>
     </label>
 
     <div class="fields">
-      <label><span>${esc(t('con.f1'))}</span><select><option></option>${opts}</select></label>
-      <label><span>${esc(t('con.f2'))}</span><input type="number" min="1996" max="2026" placeholder="2007"></label>
-      <label><span>${esc(t('con.f3'))} <em>${esc(t('con.opt'))}</em></span><input placeholder="&mdash;"></label>
-      <label><span>${esc(t('con.f4'))} <em>${esc(t('con.opt'))}</em></span><input placeholder="&mdash;"></label>
+      <label><span>${esc(t('con.f1'))}</span>
+        <select id="u_comm"><option value="">—</option>${opts}</select></label>
+      <label><span>${esc(t('con.f2'))}</span>
+        <input id="u_year" type="number" min="1996" max="2026" placeholder="2007"></label>
+      <label><span>${esc(t('con.f3'))} <em>${esc(t('con.opt'))}</em></span>
+        <input id="u_people" placeholder="&mdash;"></label>
+      <label><span>${esc(t('con.f4'))} <em>${esc(t('con.opt'))}</em></span>
+        <input id="u_event" placeholder="&mdash;"></label>
+      <label><span>${esc(t('con.yourName'))}</span>
+        <input id="u_name" placeholder="&mdash;"></label>
+      <label><span>${esc(t('con.yourEmail'))} <em>${esc(t('con.opt'))}</em></span>
+        <input id="u_email" type="email" placeholder="&mdash;"></label>
     </div>
+
+    <label class="consent">
+      <input type="checkbox" id="u_consent">
+      <span>${esc(t('con.consent'))}</span>
+    </label>
 
     <p class="screened">
       <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="#93A1BD" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2l7 3v5c0 4-3 7-7 8-4-1-7-4-7-8V5z"/><path d="M7.5 10l1.8 1.8L13 8"/></svg>
       ${esc(t('con.screened'))}</p>
 
-    <button class="btn-gold big" disabled>${esc(t('cta.send'))}</button>
+    <button class="btn-gold big" id="u_send" disabled>${esc(t('cta.send'))}</button>
     <p class="wa">${esc(t('con.wa'))} &mdash; <span dir="ltr">[WHATSAPP NUMBER]</span></p>
   </div>`;
+}
+
+/* Wiring lives apart from the markup so the view stays a pure string and the
+   handlers can be re-attached after every render. */
+function wireContribute() {
+  const fileInput = $('#file'), drop = $('#drop'), send = $('#u_send');
+  const consent = $('#u_consent'), result = $('#upResult');
+  let ready = null;
+
+  const refresh = () => { send.disabled = !(ready && consent.checked); };
+  consent.onchange = refresh;
+
+  async function take(file) {
+    if (!file) return;
+    result.innerHTML = '';
+    $('#dropIdle').hidden = true;
+    const prev = $('#dropPreview');
+    prev.hidden = false;
+    prev.innerHTML = `<p class="dim">${esc(t('con.reading'))}</p>`;
+    try {
+      ready = await TMZUpload.prepare(file);
+      prev.innerHTML = `
+        <img src="${ready.preview}" alt="" style="max-height:200px; border-radius:3px; display:block; margin:0 auto 12px">
+        <p class="dim" style="text-align:center; font-size:12px">
+          ${esc(file.name)} · <span dir="ltr">${ready.width}×${ready.height}</span>
+          · <span dir="ltr">${Math.round(ready.bytes / 1024)} KB</span>
+          ${ready.resized ? ' · ' + esc(t('con.resized')) : ''}
+        </p>
+        <p style="text-align:center"><span class="btn-gold sm">${esc(t('con.replace'))}</span></p>`;
+    } catch (e) {
+      ready = null;
+      prev.innerHTML = `<p class="warn" style="text-align:center">${esc(e.message)}</p>`;
+    }
+    refresh();
+  }
+
+  fileInput.onchange = () => take(fileInput.files[0]);
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+  drop.addEventListener('drop', e => {
+    e.preventDefault();
+    drop.classList.remove('over');
+    take(e.dataTransfer.files[0]);
+  });
+
+  send.onclick = async () => {
+    if (!ready) return;
+    send.disabled = true;
+    send.textContent = t('con.sending');
+    try {
+      const out = await TMZUpload.submit({
+        file: ready.base64, mime: ready.mime, phash: ready.phash,
+        community_slug: $('#u_comm').value || null,
+        year: $('#u_year').value ? parseInt($('#u_year').value, 10) : null,
+        people: $('#u_people').value.trim() || null,
+        event_note: $('#u_event').value.trim() || null,
+        contributor_name: $('#u_name').value.trim() || null,
+        contributor_email: $('#u_email').value.trim() || null,
+        consented: true
+      });
+      const kind = out.duplicate ? 'dup' : out.accepted ? 'ok' : 'no';
+      result.innerHTML = `<div class="up-result ${kind}">
+        <strong>${esc(out.message)}</strong>
+        ${out.description ? `<p class="dim">${esc(out.description)}</p>` : ''}
+        ${(out.reasons || []).length ? `<p class="dim">${esc(out.reasons.join(' · '))}</p>` : ''}
+      </div>`;
+      if (out.accepted && !out.duplicate) {
+        ready = null;
+        $('#dropIdle').hidden = false;
+        $('#dropPreview').hidden = true;
+        fileInput.value = '';
+      }
+    } catch (e) {
+      result.innerHTML = `<div class="up-result no"><strong>${esc(e.message)}</strong></div>`;
+    }
+    send.textContent = t('cta.send');
+    refresh();
+    result.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  };
 }
 
 /* ---- router -------------------------------------------------------------- */
@@ -460,6 +558,7 @@ function render() {
   } else {
     root.innerHTML = shell() + contributeView() + footer();
     wireShell();
+    wireContribute();
   }
   window.scrollTo(0, 0);
 }
