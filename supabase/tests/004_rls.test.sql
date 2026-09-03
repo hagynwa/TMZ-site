@@ -19,9 +19,11 @@ select is((select count(*)::int from tmz_photo), 1,
 select is((select count(*)::int from tmz_community), 1,
           'an anonymous reader sees communities');
 
+-- anon holds no UPDATE grant on this table at all (see migration 10), so this
+-- fails at the ACL check before row-level security is even considered.
 select throws_ok(
   $$ update tmz_photo set status = 'approved' $$,
-  null, null, 'an anonymous reader cannot approve a photograph'
+  '42501', null, 'an anonymous reader cannot approve a photograph'
 );
 
 -- the map payload runs as the caller, so an anon call must not leak pending work

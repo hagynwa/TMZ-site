@@ -1,9 +1,11 @@
 begin;
 select plan(6);
 
-insert into tmz_region (id, sort) values ('na', 1);
+-- on conflict: 'na' may already exist from supabase/seed.sql on a real database
+insert into tmz_region (id, sort) values ('na', 1) on conflict (id) do nothing;
 insert into tmz_region_tr (region_id, lang, name) values
-  ('na', 'en', 'North America'), ('na', 'he', 'צפון אמריקה');
+  ('na', 'en', 'North America'), ('na', 'he', 'צפון אמריקה')
+  on conflict (region_id, lang) do nothing;
 
 insert into tmz_community (id, slug, region_id, lat, lon, founded_year)
   values ('11111111-1111-1111-1111-111111111111', 'memphis', 'na', 35.15, -90.05, 2001);

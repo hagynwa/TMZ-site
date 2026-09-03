@@ -54,17 +54,41 @@ These are locked. Do not relitigate without the user.
 **Known limits of the mockup:** all data is invented and generated client-side;
 no persistence; the contribute form does not submit; no auth; no back office.
 
-### ⬜ Phase 2 — Backend and database ← **CURRENT**
+### 🟨 Phase 2 — Backend and database ← **CURRENT**
 
 Detailed plan: [`superpowers/plans/2026-09-03-backend-schema.md`](superpowers/plans/2026-09-03-backend-schema.md)
 
-- [ ] Supabase project + local dev loop (`supabase` CLI, migrations)
-- [ ] Schema: regions, communities, people, tenures, photos, events, moderation, users
-- [ ] Translation tables + fallback resolution
-- [ ] Storage buckets and image derivatives
-- [ ] RLS policies (public read of published, authenticated write, admin all)
-- [ ] Seed script that replaces the mockup's generated data
-- [ ] API layer the front end reads instead of `data.js`
+Live on a **shared** Supabase project (`xuoxkmwtdascazutoaxs`, ~46 tables from
+other unrelated apps) — every object carries the `tmz_` prefix, confirmed
+collision-free. `.env.supabase` (gitignored) holds the project ref, URL,
+service-role key and a management-API access token. No `SUPABASE_DB_URL`
+password was ever obtained or needed — migrations run via
+`supabase db push --linked` using the access token; ad-hoc verification runs
+through `https://api.supabase.com/v1/projects/<ref>/database/query`.
+
+- [x] Schema: regions, communities, people, tenures, photos, events, moderation, users (10 migrations, all pushed)
+- [x] Translation tables + fallback resolution (`tmz_community_name`, `tmz_region_name`, `tmz_person_name`)
+- [x] Storage buckets (`tmz-photo-originals` private, `tmz-photo-public` public)
+- [x] RLS policies — public read of approved/published, authenticated submit, staff (`tmz_is_staff()`) full access
+- [x] Grants hardening (migration 10) — see incident note below
+- [x] Reference seed applied (4 regions × 6 langs, 12 event types × 2 langs)
+- [x] 5 pgTAP test files, 34 assertions, all passing on the live linked DB
+- [ ] `scripts/seed-communities.mjs` — port `docs/data.js`'s 49 placeholder communities in
+- [ ] API layer the front end reads instead of `data.js` (`tmz_map_payload`, `tmz_year_payload` exist and are tested; front end not yet wired to them)
+
+**Incident, fixed same session:** this shared project carries a pre-existing
+`ALTER DEFAULT PRIVILEGES` rule (from whichever app was set up first) that
+grants **every** new public-schema table full `DELETE/INSERT/UPDATE/TRUNCATE`
+for both `anon` and `authenticated`, regardless of what a migration itself
+grants. Discovered via a live pgTAP assertion that unexpectedly passed with
+"no exception" on an anon UPDATE. RLS was already filtering rows correctly
+(confirmed: the update matched zero rows), but **`TRUNCATE` is not filtered by
+row-level security at all** — any authenticated contributor could have run
+`TRUNCATE tmz_photo`. Migration `20260903120010_grants_hardening.sql` revokes
+the unwanted verbs back down to intent on every `tmz_` table and sets a
+role-scoped `ALTER DEFAULT PRIVILEGES` so future `tmz_` tables in this session
+don't reinherit it. The other apps' own tables and their default-privilege
+rule were left untouched — out of scope and not this project's to fix.
 
 ### ⬜ Phase 3 — Back office (CMS)
 
