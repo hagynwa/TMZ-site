@@ -109,12 +109,26 @@ them.
 - [ ] Photo detail: caption, event type, people tagging
 - [ ] Bulk translation view — "everything untranslated in Russian"
 
-### ⬜ Phase 4 — Upload landing page
+### 🟨 Phase 4 — Upload landing page ← **CURRENT**
 
-- [ ] Public upload with metadata capture
-- [ ] Gemini screening: nudity, ads, violence, off-topic
-- [ ] Duplicate detection (perceptual hash)
-- [ ] Redis rate limiting and job queue
+Live at `#/contribute`. The browser prepares the image (preview, downscale over
+2200px, dHash) and posts it to the `tmz-upload` edge function, which holds the
+Gemini key, writes storage with the service role, and inserts the row. Nothing
+in that path can publish a photograph.
+
+**Deviation from the stated stack, on purpose:** this runs as a Supabase edge
+function rather than on Railway. It is a short request living next to the
+database and storage, with no long-lived process to justify a second deploy
+target. Railway still earns its place in phase 5, where the WhatsApp webhook
+has to stay up.
+
+- [x] Public upload with metadata capture (community, year, people, occasion, contributor)
+- [x] Gemini screening — nudity, violence, advertising, irrelevance; also guesses decade, setting, people count and event type to save the reviewer work
+- [x] Duplicate detection — dHash client-side, Hamming distance in Postgres, caught before storage
+- [x] Rate limiting — 20/hour per hashed IP
+- [ ] **Gemini key not yet set.** `screen()` degrades honestly: it records `screening skipped: no GEMINI_API_KEY configured` on the moderation row and holds the photo for a human. Set with `supabase secrets set GEMINI_API_KEY=…`
+- [ ] Redis — deferred. The limiter is one Postgres function; swapping the body is the whole change, and a table is honest until there is traffic that needs faster.
+- [ ] Image derivatives into `tmz-photo-public` on approval (originals stay private)
 
 ### ⬜ Phase 5 — WhatsApp collection agent
 
