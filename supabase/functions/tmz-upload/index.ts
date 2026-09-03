@@ -80,13 +80,22 @@ Return ONLY a JSON object, no markdown fence, with exactly these keys:
 }
 
 Each score is 0.0-1.0 confidence that the problem is present.
-Set "publishable" false if: it contains nudity or sexual content, graphic
-violence, is an advertisement or promotional graphic, is a screenshot or meme,
-or is clearly unrelated to Jewish community life.
-Set it true for ordinary community, family, study, event and travel photographs
-even if the quality is poor or the connection to Torah MiTzion is uncertain —
-a human reviews everything afterwards; you are filtering what must never reach
-them, not deciding what belongs.
+
+Set "publishable" FALSE only for: nudity or sexual content, graphic violence,
+an advertisement or promotional graphic, a screenshot, or a meme.
+
+Set it TRUE for everything else, including all of these, which are common in a
+thirty-year archive and must NOT be refused:
+- scans of old prints, photocopies, negatives and slides
+- blurred, grainy, faded, over-exposed, damaged or badly framed pictures
+- black-and-white and heavily colour-shifted film photographs
+- pictures of a page, a poster, a certificate or a handwritten letter
+- group portraits, empty rooms, buildings, food, travel and street scenes
+- anything whose connection to Torah MiTzion you cannot tell
+
+You are filtering only what must never reach a human reviewer. You are NOT
+judging quality, medium, age, or whether the picture belongs in the archive —
+a person decides that afterwards. When uncertain, set publishable true.
 "event_type" should be one of: simchat_torah, shabbaton, morning_seder,
 yom_haatzmaut, chanukah, purim, opening_night, melave_malka, shavuot,
 farewell, chavruta, youth — or null if unclear.
@@ -106,7 +115,10 @@ async function screen(base64: string, mime: string) {
     };
   }
 
-  const model = 'gemini-2.5-flash';
+  // gemini-2.5-flash was retired for new keys mid-2026 and answers 404; the
+  // API's own error names this as the replacement. Pinned rather than using
+  // -latest, which was returning 503.
+  const model = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3.6-flash';
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     {
