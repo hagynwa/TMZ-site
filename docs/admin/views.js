@@ -37,7 +37,7 @@ const tile = (k, v, cls = '') =>
 /* The question the whole campaign exists to answer: which community, which
    year, still has nothing. One cell per community-year, so a gap is a hole you
    can see rather than a number you have to interpret. */
-export async function coverage() {
+export async function campaign() {
   const [cov, intake] = await Promise.all([
     sb.rpc('tmz_coverage', { want: 'en' }),
     sb.rpc('tmz_intake_stats', { days: 30 })
