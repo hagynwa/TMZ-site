@@ -1,2 +1,9 @@
 # local preview config — points at a machine-specific temp path
 .claude/
+
+# Supabase local + secrets
+supabase/.branches
+supabase/.temp
+.env.supabase
+.env.local
+node_modules/
