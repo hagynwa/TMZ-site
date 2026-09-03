@@ -21,6 +21,42 @@ function readSession() {
   } catch { return null; }
 }
 
+/* Access tokens last an hour. Without this the back office signs you out
+   mid-afternoon and sends you back through Google, which is no way to spend a
+   day editing records. Refresh a minute early so a long request cannot land
+   on an expired token. */
+async function refreshSession() {
+  let stored;
+  try { stored = JSON.parse(localStorage.getItem(SESSION_STORAGE_KEY) || 'null'); }
+  catch { return null; }
+  if (!stored?.refresh_token) return null;
+
+  const res = await fetch(`${AUTH}/token?grant_type=refresh_token`, {
+    method: 'POST',
+    headers: { apikey: KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refresh_token: stored.refresh_token })
+  });
+  if (!res.ok) { writeSession(null); return null; }
+
+  const d = await res.json();
+  if (!d.access_token) { writeSession(null); return null; }
+  const s = {
+    access_token: d.access_token,
+    refresh_token: d.refresh_token ?? stored.refresh_token,
+    expires_in: d.expires_in ?? 3600,
+    expires_at: Math.floor(Date.now() / 1000) + (d.expires_in ?? 3600) - 60,
+    token_type: d.token_type || 'bearer'
+  };
+  writeSession(s);
+  return s;
+}
+
+/* The one entry point the app should use: hands back a usable session,
+   refreshing transparently, or null when the user really must sign in again. */
+export async function ensureSession() {
+  return readSession() ?? await refreshSession();
+}
+
 function writeSession(s) {
   if (s && s.access_token) localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(s));
   else localStorage.removeItem(SESSION_STORAGE_KEY);
@@ -34,11 +70,12 @@ export function captureRedirect() {
   const params = new URLSearchParams(location.hash.slice(1));
   const access_token = params.get('access_token');
   if (!access_token) return null;
+  const ttl = +params.get('expires_in') || 3600;
   const s = {
     access_token,
     refresh_token: params.get('refresh_token'),
-    expires_in: +params.get('expires_in') || 3600,
-    expires_at: Math.floor(Date.now() / 1000) + (+params.get('expires_in') || 3600),
+    expires_in: ttl,
+    expires_at: Math.floor(Date.now() / 1000) + ttl - 60,
     token_type: params.get('token_type') || 'bearer'
   };
   writeSession(s);
@@ -73,12 +110,21 @@ function authHeaders(session) {
   };
 }
 
-async function pg(path, { method = 'GET', body, prefer, session } = {}) {
-  const headers = { ...authHeaders(session || readSession()), 'Content-Type': 'application/json' };
+async function pg(path, { method = 'GET', body, prefer, session, retried } = {}) {
+  const active = session || await ensureSession();
+  const headers = { ...authHeaders(active), 'Content-Type': 'application/json' };
   if (prefer) headers.Prefer = prefer;
   const res = await fetch(`${REST}${path}`, {
     method, headers, body: body ? JSON.stringify(body) : undefined
   });
+
+  // A token can expire between the check and the request landing. Refresh once
+  // and replay rather than throwing a confusing 401 at the view.
+  if (res.status === 401 && !retried) {
+    const fresh = await refreshSession();
+    if (fresh) return pg(path, { method, body, prefer, session: fresh, retried: true });
+  }
+
   const text = await res.text();
   if (!res.ok) throw new Error(`${method} ${path} → ${res.status} ${text}`);
   return text ? JSON.parse(text) : null;
@@ -130,7 +176,7 @@ export const sb = {
   },
 
   async me() {
-    const s = readSession();
+    const s = await ensureSession();
     if (!s) return null;
     const res = await fetch(`${AUTH}/user`, { headers: authHeaders(s) });
     if (!res.ok) { writeSession(null); return null; }

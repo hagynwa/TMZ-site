@@ -1,4 +1,4 @@
-import { sb, captureRedirect, getSession, signInWithGoogle, signOut } from './sb.js';
+import { sb, captureRedirect, ensureSession, signInWithGoogle, signOut } from './sb.js';
 import { $, esc, REGION_NAMES } from './ui.js';
 import { dashboard, coverage, communities, people, photos, translations } from './views.js';
 
@@ -11,7 +11,7 @@ captureRedirect();
 const app = $('#app');
 
 async function boot() {
-  const session = getSession();
+  const session = await ensureSession();
   if (!session) { renderGate(); return; }
 
   const user = await sb.me();
