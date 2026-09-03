@@ -1,6 +1,6 @@
 import { sb, captureRedirect, getSession, signInWithGoogle, signOut } from './sb.js';
 import { $, esc, REGION_NAMES } from './ui.js';
-import { dashboard, communities, people, photos } from './views.js';
+import { dashboard, communities, people, photos, translations } from './views.js';
 
 /* Auth boot order matters: the redirect back from Google carries the token in
    the URL fragment, so we capture and clear that BEFORE we ever ask the DB who
@@ -80,6 +80,7 @@ function renderShell(user, profile) {
           <a href="#/" data-route="dashboard">Dashboard</a>
           <a href="#/communities" data-route="communities">Communities</a>
           <a href="#/people" data-route="people">People</a>
+          <a href="#/translations" data-route="translations">Translations</a>
           <a href="#/photos" data-route="photos">Moderation</a>
         </nav>
         <div class="side-me">
@@ -111,12 +112,13 @@ function renderShell(user, profile) {
 /* ---- routing ------------------------------------------------------------ */
 
 const routes = {
-  dashboard, communities, people, photos
+  dashboard, communities, people, photos, translations
 };
 
 async function handleRoute() {
   if (!$('#page')) return;
-  const h = (location.hash || '#/').slice(2) || 'dashboard';
+  // strip any ?query the view carries (translations uses ?lang=)
+  const h = (location.hash || '#/').slice(2).split('?')[0] || 'dashboard';
   const name = routes[h] ? h : 'dashboard';
   document.querySelectorAll('#nav a').forEach(a =>
     a.classList.toggle('on', a.dataset.route === name));

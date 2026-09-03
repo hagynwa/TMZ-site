@@ -209,9 +209,37 @@ export async function people() {
   });
 }
 
-function personDrawer(row) {
+/* Cached lookups the tenure editor needs; both are small and change rarely. */
+let _communities = null, _institutions = null;
+async function lookups() {
+  if (!_communities) {
+    [_communities, _institutions] = await Promise.all([
+      sb.from('tmz_community', {}).select('id,slug,tmz_community_tr(lang,name)', { order: 'slug.asc' }),
+      sb.from('tmz_institution', {}).select('id,slug,tmz_institution_tr(lang,name)', { order: 'slug.asc' })
+    ]);
+  }
+  return { communities: _communities, institutions: _institutions };
+}
+
+const ROLES = {
+  rosh_kollel: 'Rosh Kollel', shaliach: 'Shaliach', shlicha: 'Shlicha',
+  spouse: 'Spouse', child: 'Child', staff: 'Staff'
+};
+
+async function personDrawer(row) {
   const isNew = !row;
   const p = row || { slug: '', birth_year: '', tmz_person_tr: [] };
+  const { communities: comms, institutions: insts } = await lookups();
+
+  const tenures = isNew ? [] : await sb.from('tmz_tenure', {}).select(
+    'id,community_id,role,start_year,end_year,institution_id,household_of',
+    { filter: { person_id: `eq.${p.id}` }, order: 'start_year.asc' });
+
+  const commName = id => {
+    const c = comms.find(x => x.id === id);
+    return c ? (pickName(c.tmz_community_tr) || c.slug) : '—';
+  };
+
   const trBlock = lang => {
     const t = p.tmz_person_tr.find(x => x.lang === lang) || {};
     return `<div class="tr-block">
@@ -221,6 +249,14 @@ function personDrawer(row) {
     </div>`;
   };
 
+  const tenureRows = tenures.length ? tenures.map(t => `
+    <tr data-tenure="${t.id}">
+      <td>${esc(commName(t.community_id))}</td>
+      <td>${esc(ROLES[t.role] || t.role)}</td>
+      <td class="mono">${t.start_year}–${t.end_year || 'now'}</td>
+      <td class="actions"><button class="del rm-tenure">Remove</button></td>
+    </tr>`).join('') : `<tr><td colspan="4" class="dim">No tenures yet.</td></tr>`;
+
   const el = openDrawer(isNew ? 'New person' : `Edit ${pickName(p.tmz_person_tr) || p.slug || 'person'}`, `
     <div id="drawerErr"></div>
     <div class="field row2">
@@ -229,13 +265,105 @@ function personDrawer(row) {
       <div><label>Birth year <span class="dim">(optional)</span></label>
         <input id="f_by" type="number" value="${p.birth_year || ''}"></div>
     </div>
-    <h3 style="font-family:var(--serif); font-size:18px; margin:20px 0 10px">Translations</h3>
+
+    <h3 style="font-family:var(--serif); font-size:18px; margin:22px 0 10px">Translations</h3>
     ${LANGS.map(trBlock).join('')}
+
+    <h3 style="font-family:var(--serif); font-size:18px; margin:24px 0 10px">Tenures</h3>
+    ${isNew ? `<p class="dim" style="font-size:12.5px">Save the person first, then add tenures.</p>` : `
+    <div class="tbl-wrap" style="margin-bottom:14px"><table class="tbl">
+      <thead><tr><th>Community</th><th>Role</th><th>Years</th><th></th></tr></thead>
+      <tbody id="tenureBody">${tenureRows}</tbody>
+    </table></div>
+    <div class="tr-block">
+      <h4>Add a tenure</h4>
+      <div class="field row2">
+        <div><label>Community</label><select id="t_comm">
+          ${comms.map(c => `<option value="${c.id}">${esc(pickName(c.tmz_community_tr) || c.slug)}</option>`).join('')}
+        </select></div>
+        <div><label>Role</label><select id="t_role">
+          ${Object.entries(ROLES).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}
+        </select></div>
+      </div>
+      <div class="field row2">
+        <div><label>Start year</label><input id="t_from" type="number" placeholder="2001"></div>
+        <div><label>End year <span class="dim">(blank = ongoing)</span></label><input id="t_to" type="number"></div>
+      </div>
+      <div class="field"><label>Sent from <span class="dim">(optional)</span></label><select id="t_inst">
+        <option value="">—</option>
+        ${insts.map(i => `<option value="${i.id}">${esc(pickName(i.tmz_institution_tr) || i.slug)}</option>`).join('')}
+      </select></div>
+      <div class="field" id="householdWrap" hidden>
+        <label>Household of <span class="dim">(whose family are they part of)</span></label>
+        <select id="t_house"><option value="">—</option></select>
+      </div>
+      <button class="btn" id="addTenure">Add tenure</button>
+    </div>`}
   `, [
     !isNew && { label: 'Delete', kind: 'danger', onClick: () => deletePerson(p) },
     { label: 'Cancel', onClick: closeDrawer },
     { label: isNew ? 'Create' : 'Save', kind: 'solid', onClick: e => savePerson(p, e) }
   ].filter(Boolean));
+
+  if (isNew) return;
+
+  /* household_of only makes sense for a spouse or child, and only against a
+     Rosh Kollel serving at the same community. Load those on demand. */
+  const roleSel = el.querySelector('#t_role');
+  const commSel = el.querySelector('#t_comm');
+  const wrap = el.querySelector('#householdWrap');
+  const houseSel = el.querySelector('#t_house');
+
+  async function refreshHousehold() {
+    const needs = ['spouse', 'child'].includes(roleSel.value);
+    wrap.hidden = !needs;
+    if (!needs) return;
+    const heads = await sb.from('tmz_tenure', {}).select(
+      'id,start_year,end_year,tmz_person(tmz_person_tr(lang,display_name))',
+      { filter: { community_id: `eq.${commSel.value}`, role: 'eq.rosh_kollel' }, order: 'start_year.asc' });
+    houseSel.innerHTML = '<option value="">—</option>' + heads.map(h =>
+      `<option value="${h.id}">${esc(pickName((h.tmz_person || {}).tmz_person_tr) || 'Rosh Kollel')} (${h.start_year}–${h.end_year || 'now'})</option>`
+    ).join('');
+  }
+  roleSel.onchange = refreshHousehold;
+  commSel.onchange = refreshHousehold;
+
+  el.querySelector('#addTenure').onclick = async () => {
+    const err = el.querySelector('#drawerErr');
+    err.innerHTML = '';
+    const from = parseInt(el.querySelector('#t_from').value, 10);
+    if (!from) { err.innerHTML = '<div class="error">A start year is required.</div>'; return; }
+    try {
+      await sb.from('tmz_tenure').insert({
+        person_id: p.id,
+        community_id: commSel.value,
+        role: roleSel.value,
+        start_year: from,
+        end_year: el.querySelector('#t_to').value ? parseInt(el.querySelector('#t_to').value, 10) : null,
+        institution_id: el.querySelector('#t_inst').value || null,
+        household_of: houseSel.value || null
+      });
+      toast('Tenure added.');
+      closeDrawer();
+      const fresh = await sb.from('tmz_person', {}).select(
+        'id,slug,birth_year,tmz_person_tr(lang,display_name)', { filter: { id: `eq.${p.id}` } });
+      personDrawer(fresh[0]);
+    } catch (e) {
+      err.innerHTML = `<div class="error">${esc(e.message)}</div>`;
+    }
+  };
+
+  el.querySelectorAll('.rm-tenure').forEach(b => {
+    b.onclick = async () => {
+      const id = b.closest('tr').dataset.tenure;
+      if (!confirm('Remove this tenure? Any household members attached to it go too.')) return;
+      try {
+        await sb.from('tmz_tenure').delete({ id: `eq.${id}` });
+        b.closest('tr').remove();
+        toast('Tenure removed.');
+      } catch (e) { alert(e.message); }
+    };
+  });
 }
 
 async function savePerson(orig, el) {
@@ -277,6 +405,103 @@ async function deletePerson(p) {
     closeDrawer();
     people();
   } catch (e) { alert(e.message); }
+}
+
+/* ---- translations -------------------------------------------------------- */
+
+/* The whole reason translations live in their own tables rather than a jsonb
+   blob: "what is still missing in Russian" has to be one query, and it has to
+   be fixable in place without hunting through every community. */
+export async function translations() {
+  const [comms, ppl] = await Promise.all([
+    sb.from('tmz_community', {}).select('id,slug,tmz_community_tr(lang,name)', { order: 'slug.asc' }),
+    sb.from('tmz_person', {}).select('id,slug,tmz_person_tr(lang,display_name)', { order: 'slug.asc.nullslast' })
+  ]);
+
+  const entities = [
+    ...comms.map(c => ({ kind: 'community', id: c.id, slug: c.slug,
+                         name: pickName(c.tmz_community_tr) || c.slug, tr: c.tmz_community_tr || [] })),
+    ...ppl.map(p => ({ kind: 'person', id: p.id, slug: p.slug || '—',
+                       name: pickName(p.tmz_person_tr) || p.slug || 'unnamed', tr: p.tmz_person_tr || [] }))
+  ];
+
+  const perLang = {};
+  for (const l of LANGS) perLang[l] = entities.filter(e => !e.tr.some(t => t.lang === l)).length;
+  const active = (new URLSearchParams(location.hash.split('?')[1] || '')).get('lang') || 'he';
+  const missing = entities.filter(e => !e.tr.some(t => t.lang === active));
+
+  $('#page').innerHTML = `
+    <div class="page-head">
+      <div><h1>Translations</h1>
+        <p>${entities.length} translatable records across communities and people.</p></div>
+    </div>
+    <div class="stat-grid">
+      ${LANGS.map(l => `
+        <button class="stat-tile" data-lang="${l}" style="text-align:start; ${l === active ? 'border-color:rgba(232,200,125,.5)' : ''}">
+          <span class="k">${esc(LANG_NAMES[l])}</span>
+          <span class="v ${perLang[l] ? '' : 'gold'}">${perLang[l] === 0 ? '✓' : perLang[l]}</span>
+          <span class="k" style="letter-spacing:0; text-transform:none">${perLang[l] === 0 ? 'complete' : 'missing'}</span>
+        </button>`).join('')}
+    </div>
+
+    <h2 style="font-family:var(--serif); font-size:20px; margin:0 0 12px">
+      Missing in ${esc(LANG_NAMES[active])} — ${missing.length}</h2>
+    ${missing.length === 0
+      ? `<div class="empty">Nothing missing. Every record has a ${esc(LANG_NAMES[active])} translation.</div>`
+      : `<div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>Record</th><th>Type</th><th>Fallback shown</th><th>Coverage</th><th></th></tr></thead>
+      <tbody>${missing.map(e => `<tr data-id="${e.id}" data-kind="${e.kind}">
+        <td>${esc(e.name)}</td>
+        <td class="dim">${esc(e.kind)}</td>
+        <td class="dim">${esc(pickName(e.tr) || '—')}</td>
+        <td>${coverage(e.tr)}</td>
+        <td class="actions"><button class="fix">Add ${esc(active.toUpperCase())}</button></td>
+      </tr>`).join('')}</tbody></table></div>`}`;
+
+  // setting the hash fires hashchange, which re-runs the router for us
+  document.querySelectorAll('#page [data-lang]').forEach(b => {
+    b.onclick = () => { location.hash = `#/translations?lang=${b.dataset.lang}`; };
+  });
+  document.querySelectorAll('#page tbody tr').forEach(tr => {
+    tr.querySelector('.fix').onclick = () => quickTranslate(tr.dataset.kind, tr.dataset.id, active, entities);
+  });
+}
+
+function quickTranslate(kind, id, lang, entities) {
+  const e = entities.find(x => x.id === id);
+  const table = kind === 'community' ? 'tmz_community_tr' : 'tmz_person_tr';
+  const fkey = kind === 'community' ? 'community_id' : 'person_id';
+  const field = kind === 'community' ? 'name' : 'display_name';
+
+  const el = openDrawer(`${LANG_NAMES[lang]} — ${e.name}`, `
+    <div id="drawerErr"></div>
+    <p class="dim" style="margin-top:0">
+      Currently falling back to <b>${esc(pickName(e.tr) || '—')}</b>.
+      Existing translations:</p>
+    <div class="tbl-wrap" style="margin-bottom:16px"><table class="tbl">
+      <tbody>${(e.tr.length ? e.tr : [{ lang: '—', [field]: 'none' }]).map(t =>
+        `<tr><td class="dim" style="width:90px">${esc(LANG_NAMES[t.lang] || t.lang)}</td>
+             <td>${esc(t[field] || t.name || t.display_name || '')}</td></tr>`).join('')}</tbody>
+    </table></div>
+    <div class="field"><label>${esc(LANG_NAMES[lang])}</label>
+      <input id="q_val" dir="${lang === 'he' ? 'rtl' : 'ltr'}" placeholder="${esc(pickName(e.tr) || '')}"></div>
+  `, [
+    { label: 'Cancel', onClick: closeDrawer },
+    { label: 'Save', kind: 'solid', onClick: async drawer => {
+      const v = drawer.querySelector('#q_val').value.trim();
+      if (!v) return;
+      try {
+        await sb.from(table).upsert({ [fkey]: id, lang, [field]: v },
+                                    { onConflict: `${fkey},lang` });
+        toast('Translation saved.');
+        closeDrawer();
+        translations();
+      } catch (err) {
+        drawer.querySelector('#drawerErr').innerHTML = `<div class="error">${esc(err.message)}</div>`;
+      }
+    } }
+  ]);
+  el.querySelector('#q_val').focus();
 }
 
 /* ---- photos / moderation queue ------------------------------------------ */

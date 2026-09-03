@@ -21,6 +21,30 @@ insert into tmz_region_tr (region_id, lang, name) values
   ('oc','de','Afrika & Ozeanien'), ('oc','es','África y Oceanía')
 on conflict (region_id, lang) do nothing;
 
+-- The yeshivot and midrashot shlichim are sent from. Slugs are stable; the
+-- display name is translatable like everything else.
+insert into tmz_institution (id, slug) values
+  ('00000000-0000-4000-8000-000000000001', 'har-etzion'),
+  ('00000000-0000-4000-8000-000000000002', 'migdal-oz'),
+  ('00000000-0000-4000-8000-000000000003', 'ein-hanatziv'),
+  ('00000000-0000-4000-8000-000000000004', 'otniel'),
+  ('00000000-0000-4000-8000-000000000005', 'shaalvim'),
+  ('00000000-0000-4000-8000-000000000006', 'maale-gilboa'),
+  ('00000000-0000-4000-8000-000000000007', 'ein-tzurim'),
+  ('00000000-0000-4000-8000-000000000008', 'kerem-byavneh')
+on conflict (id) do nothing;
+
+insert into tmz_institution_tr (institution_id, lang, name) values
+  ('00000000-0000-4000-8000-000000000001','en','Har Etzion'),      ('00000000-0000-4000-8000-000000000001','he','הר עציון'),
+  ('00000000-0000-4000-8000-000000000002','en','Migdal Oz'),       ('00000000-0000-4000-8000-000000000002','he','מגדל עוז'),
+  ('00000000-0000-4000-8000-000000000003','en','Ein HaNatziv'),    ('00000000-0000-4000-8000-000000000003','he','עין הנצי״ב'),
+  ('00000000-0000-4000-8000-000000000004','en','Otniel'),          ('00000000-0000-4000-8000-000000000004','he','עתניאל'),
+  ('00000000-0000-4000-8000-000000000005','en','Sha''alvim'),      ('00000000-0000-4000-8000-000000000005','he','שעלבים'),
+  ('00000000-0000-4000-8000-000000000006','en','Ma''ale Gilboa'),  ('00000000-0000-4000-8000-000000000006','he','מעלה גלבוע'),
+  ('00000000-0000-4000-8000-000000000007','en','Ein Tzurim'),      ('00000000-0000-4000-8000-000000000007','he','עין צורים'),
+  ('00000000-0000-4000-8000-000000000008','en','Kerem B''Yavneh'), ('00000000-0000-4000-8000-000000000008','he','כרם ביבנה')
+on conflict (institution_id, lang) do nothing;
+
 insert into tmz_event_type (id, sort) values
   ('simchat_torah', 1), ('shabbaton', 2), ('morning_seder', 3),
   ('yom_haatzmaut', 4), ('chanukah', 5), ('purim', 6),
