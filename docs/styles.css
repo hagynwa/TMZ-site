@@ -141,6 +141,11 @@ h1,h2,h3 { margin: 0; font-weight: 400; }
 /* Stays on the LEFT in every language: it sits where the MAP is empty, and the
    empty water is in the Pacific whichever way you read. */
 .side { position: absolute; left: clamp(16px,3vw,40px); top: 52%; width: 200px; z-index: 20; }
+.zoomout { display: flex; align-items: center; gap: 9px; width: 100%; margin-bottom: 16px;
+           padding: 9px 12px; border: 1px solid rgba(232,200,125,.32); border-radius: 2px;
+           background: rgba(232,200,125,.1); color: var(--gold); font-size: 12px;
+           font-weight: 500; letter-spacing: .06em; text-align: start; }
+.zoomout:hover { background: rgba(232,200,125,.2); border-color: rgba(232,200,125,.7); }
 .legend { display: flex; flex-direction: column; gap: 9px; margin-bottom: 20px; }
 .lg { display: flex; align-items: center; gap: 10px; font-size: 10.5px; font-weight: 300;
       letter-spacing: .1em; color: var(--muted); }

@@ -4,7 +4,19 @@
 const $ = sel => document.querySelector(sel);
 const esc = s => String(s).replace(/[&<>"]/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[m]));
 
-const view = { zoom: 'world', custom: null, sel: 'memphis' };
+const view = { zoom: 'world', custom: null, sel: 'memphis', history: [] };
+
+/* Every view change remembers where it came from, so zooming out walks back the
+   way you came in instead of dumping you at the world. */
+function setView(next) {
+  view.history.push({ zoom: view.zoom, custom: view.custom });
+  Object.assign(view, next);
+}
+function zoomOut() {
+  const prev = view.history.pop();
+  if (prev) { view.zoom = prev.zoom; view.custom = prev.custom; }
+  else { view.zoom = 'world'; view.custom = null; }
+}
 let resizeTimer = null;
 
 /* ---- shell --------------------------------------------------------------- */
@@ -179,9 +191,8 @@ function drawMap() {
   });
   $('#markers').querySelectorAll('[data-cluster]').forEach(b => {
     b.onclick = () => {
-      view.custom = fitCluster(markers[+b.dataset.cluster].members, W, H);
-      view.zoom = 'custom';
-      drawSide(views); drawMap();
+      setView({ custom: fitCluster(markers[+b.dataset.cluster].members, W, H), zoom: 'custom' });
+      drawMap();
     };
   });
 }
@@ -205,7 +216,12 @@ function drawSide(views) {
     `<button class="rgn${view.zoom === k ? ' on' : ''}" data-view="${k}">
        <span>${esc(t(views[k].key))}</span><span class="n">${num(views[k].n)}</span></button>`).join('');
 
+  const zoomed = view.zoom !== 'world' || view.custom;
   $('#side').innerHTML = `
+    ${zoomed ? `<button class="zoomout" id="zoomOut">
+      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="9" cy="9" r="6"/><path d="M6.5 9h5"/><path d="M13.5 13.5L18 18"/></svg>
+      <span>${esc(t('fly.out'))}</span></button>` : ''}
     <div class="legend">
       <div class="lg"><span class="s open"></span>${esc(t('legend.open'))} &mdash; ${num(open)}</div>
       <div class="lg"><span class="s alum"></span>${esc(t('legend.alumni'))} &mdash; ${num(COMMUNITIES.length - open)}</div>
@@ -215,8 +231,10 @@ function drawSide(views) {
     <p class="side-note">${esc(t('foot.mock'))} <a href="canvas.html">${esc(t('foot.canvas'))} &rarr;</a></p>`;
 
   $('#side').querySelectorAll('[data-view]').forEach(b => {
-    b.onclick = () => { view.zoom = b.dataset.view; view.custom = null; drawMap(); };
+    b.onclick = () => { setView({ zoom: b.dataset.view, custom: null }); drawMap(); };
   });
+  const zo = $('#zoomOut');
+  if (zo) zo.onclick = () => { zoomOut(); drawMap(); };
 }
 
 function drawBand() {
