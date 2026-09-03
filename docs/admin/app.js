@@ -21,7 +21,7 @@ async function boot() {
      only their OWN row, so this is safe to do straight from the client. */
   const rows = await sb.from('tmz_app_user').select('*', { filter: { id: `eq.${user.id}` } });
   const profile = rows[0];
-  if (!profile) { renderIntake(user); return; }
+  if (!profile) { autoRegister(user); return; }
 
   renderShell(user, profile);
   handleRoute();
@@ -46,48 +46,21 @@ function renderGate() {
 
 /* ---- first-run intake --------------------------------------------------- */
 
-function renderIntake(user) {
-  const displayName = user.user_metadata?.full_name || user.email || '';
-  app.innerHTML = `
-    <div class="intake"><div class="intake-card">
-      <h1>Welcome</h1>
-      <p class="lede">One quick question — how do you know Torah MiTzion? We ask so we can route your access correctly.</p>
-      <div id="intakeErr"></div>
-      <label><span>Your name</span>
-        <input id="i_name" value="${esc(displayName)}"></label>
-      <label><span>How you're connected</span>
-        <select id="i_kind">
-          <option value="shaliach">I was a shaliach or shlicha</option>
-          <option value="rosh_kollel">I was a Rosh Kollel</option>
-          <option value="community_member">I'm from one of the communities</option>
-          <option value="family">A relative served</option>
-          <option value="alumnus">I'm otherwise an alumnus</option>
-          <option value="staff">Torah MiTzion staff</option>
-          <option value="other">Something else</option>
-        </select></label>
-      <label><span>Tell us a bit more <span class="dim">(which community, which year, in a sentence)</span></span>
-        <textarea id="i_detail" rows="3"></textarea></label>
-      <button class="btn solid" id="save" style="width:100%; padding:12px; justify-content:center;">Continue</button>
-      <small style="display:block; margin-top:14px; color:var(--dim); font-size:11.5px;">
-        Signed in as ${esc(user.email)}. <a href="#" id="out">Sign out</a>
-      </small>
+/* Silent registration for the back office. The public "how do you know Torah
+   MiTzion" question belongs to the site's contributor signup, not here — a
+   back-office user is either promoted by an admin or they're not. */
+async function autoRegister(user) {
+  const displayName = user.user_metadata?.full_name || user.email || null;
+  try {
+    await sb.from('tmz_app_user').insert({ id: user.id, display_name: displayName });
+    boot();
+  } catch (e) {
+    app.innerHTML = `<div class="gate"><div class="gate-card">
+      <h1>Couldn't register</h1>
+      <p>${esc(e.message)}</p>
+      <button class="btn ghost" onclick="location.reload()">Try again</button>
     </div></div>`;
-  $('#out').onclick = e => { e.preventDefault(); signOut(); };
-  $('#save').onclick = async () => {
-    const err = $('#intakeErr');
-    err.innerHTML = '';
-    try {
-      await sb.from('tmz_app_user').insert({
-        id: user.id,
-        display_name: $('#i_name').value.trim() || null,
-        connection_kind: $('#i_kind').value,
-        connection_detail: $('#i_detail').value.trim() || null
-      });
-      boot();
-    } catch (e) {
-      err.innerHTML = `<div class="error">${esc(e.message)}</div>`;
-    }
-  };
+  }
 }
 
 /* ---- signed in ---------------------------------------------------------- */
