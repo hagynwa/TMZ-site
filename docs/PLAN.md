@@ -126,23 +126,32 @@ has to stay up.
 - [x] Gemini screening — nudity, violence, advertising, irrelevance; also guesses decade, setting, people count and event type to save the reviewer work
 - [x] Duplicate detection — dHash client-side, Hamming distance in Postgres, caught before storage
 - [x] Rate limiting — 20/hour per hashed IP
-- [ ] **Gemini key not yet set.** `screen()` degrades honestly: it records `screening skipped: no GEMINI_API_KEY configured` on the moderation row and holds the photo for a human. Set with `supabase secrets set GEMINI_API_KEY=…`
+- [x] **Gemini key set** (shared with `gifted_app` — disconnecting one breaks the other). Model is `gemini-3.6-flash`: `gemini-2.5-flash` answers 404 for keys issued after its retirement, and the API's own error names the replacement.
+- [x] Prompt calibrated against both ends — a grainy faded scan passes, an advertisement is refused with reasons. **This matters:** the first prompt refused a picture for not being a "real photograph", which would have rejected exactly the 1996-era scans and photocopies the archive most needs.
 - [ ] Redis — deferred. The limiter is one Postgres function; swapping the body is the whole change, and a table is honest until there is traffic that needs faster.
 - [ ] Image derivatives into `tmz-photo-public` on approval (originals stay private)
 
-### ⬜ Phase 5 — WhatsApp collection agent
+### 🟨 Phase 5 — WhatsApp collection agent
 
-- [ ] HookMyApp channel (`hookmyapp channels connect whatsapp`)
-- [ ] Webhook receiver + HMAC verification
-- [ ] Gemini conversational agent: screens, asks for community/year/people/event
-- [ ] Six-language conversation
-- [ ] Writes straight into the moderation queue
+Also an edge function (`tmz-whatsapp`), for the same reason as the upload path:
+HookMyApp forwards a webhook, so this is request/response, not a process that
+needs to stay up. Deployed with `--no-verify-jwt` because HookMyApp does not
+carry a Supabase JWT — the HMAC signature is the gate instead, and an unsigned
+POST gets 401, a GET without the verify token gets 403. Both confirmed live.
 
-### ⬜ Phase 6 — Campaign dashboard
+- [x] Webhook receiver + HMAC verification over the raw bytes
+- [x] Answers 200 immediately, works in a microtask — a slow Gemini call cannot trigger Meta's retry and duplicate a photograph
+- [x] Gemini screens the image and parses the free-text reply in any language and any order
+- [x] Conversation is thin on purpose: the photograph is accepted first, questions follow. Someone going through a shoebox sends five in a row.
+- [x] Replies in EN/HE/RU; other locales fall back to English
+- [x] Writes straight into the same moderation queue as the upload page
+- [ ] **Blocked on a human step:** `hookmyapp login` and `hookmyapp channels connect whatsapp` both open a browser flow that cannot be automated. After connecting, set `WEBHOOK_HMAC_SECRET`, `VERIFY_TOKEN`, `WHATSAPP_ACCESS_TOKEN` and `WHATSAPP_PHONE_NUMBER_ID` as function secrets and point the channel webhook at `https://xuoxkmwtdascazutoaxs.supabase.co/functions/v1/tmz-whatsapp`. Until then the function refuses everything, which is the correct default.
 
-- [ ] Coverage grid — every community × every year, holes visible
-- [ ] Intake metrics by source, language, community
-- [ ] Contributor leaderboard; per-community outreach targets
+### 🟨 Phase 6 — Campaign dashboard
+
+- [x] Coverage grid — every community × every year it was open, one cell each. 903 cells, all empty today; that is the campaign's real starting line.
+- [x] Intake metrics by source and status, contributors and auto-rejections over a rolling window
+- [ ] Per-community outreach targets and contributor leaderboard
 
 ---
 
