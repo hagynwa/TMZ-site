@@ -181,3 +181,25 @@ table.tbl td.actions .del:hover { color: var(--danger); }
   .side-me { border: 0; padding: 0; margin-inline-start: auto; }
   main { padding: 20px; }
 }
+
+/* ---- campaign coverage grid ---------------------------------------------- */
+
+.cv-legend { display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+             margin-bottom: 14px; font-size: 11.5px; color: var(--dim2); }
+.cv-legend span { display: flex; align-items: center; gap: 6px; }
+.cv-legend i { display: inline-block; }
+.cv-cell { display: inline-block; width: 9px; height: 15px; margin-inline-end: 1px;
+           border-radius: 1px; vertical-align: middle; }
+.cv-cell.zero { background: rgba(192,143,208,.22); box-shadow: inset 0 0 0 1px rgba(192,143,208,.45); }
+.cv-cell.low  { background: rgba(232,200,125,.35); }
+.cv-cell.mid  { background: rgba(232,200,125,.65); }
+.cv-cell.high { background: var(--gold); }
+.cv-cell.out  { background: rgba(255,255,255,.04); }
+.cv-table td, .cv-table th { padding: 6px 12px; }
+.cv-name { white-space: nowrap; font-size: 12.5px; }
+.cv-strip { line-height: 1; white-space: nowrap; }
+.cv-num { text-align: end; font-variant-numeric: tabular-nums; width: 60px; }
+.cv-num.warn { color: var(--warn); }
+.cv-years { display: inline-block; white-space: nowrap; }
+.cv-year { display: inline-block; width: 9px; margin-inline-end: 1px; font-size: 8.5px;
+           color: var(--dim); text-align: start; }

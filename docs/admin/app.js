@@ -1,6 +1,6 @@
 import { sb, captureRedirect, getSession, signInWithGoogle, signOut } from './sb.js';
 import { $, esc, REGION_NAMES } from './ui.js';
-import { dashboard, communities, people, photos, translations } from './views.js';
+import { dashboard, coverage, communities, people, photos, translations } from './views.js';
 
 /* Auth boot order matters: the redirect back from Google carries the token in
    the URL fragment, so we capture and clear that BEFORE we ever ask the DB who
@@ -78,6 +78,7 @@ function renderShell(user, profile) {
         </a>
         <nav class="nav" id="nav">
           <a href="#/" data-route="dashboard">Dashboard</a>
+          <a href="#/coverage" data-route="coverage">Campaign</a>
           <a href="#/communities" data-route="communities">Communities</a>
           <a href="#/people" data-route="people">People</a>
           <a href="#/translations" data-route="translations">Translations</a>
@@ -112,7 +113,7 @@ function renderShell(user, profile) {
 /* ---- routing ------------------------------------------------------------ */
 
 const routes = {
-  dashboard, communities, people, photos, translations
+  dashboard, coverage, communities, people, photos, translations
 };
 
 async function handleRoute() {

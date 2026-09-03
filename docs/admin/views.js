@@ -32,6 +32,75 @@ const tile = (k, v, cls = '') =>
   `<div class="stat-tile"><span class="k">${esc(k)}</span>
     <span class="v ${cls}">${v.toLocaleString('en-US')}</span></div>`;
 
+/* ---- campaign coverage --------------------------------------------------- */
+
+/* The question the whole campaign exists to answer: which community, which
+   year, still has nothing. One cell per community-year, so a gap is a hole you
+   can see rather than a number you have to interpret. */
+export async function coverage() {
+  const [cov, intake] = await Promise.all([
+    sb.rpc('tmz_coverage', { want: 'en' }),
+    sb.rpc('tmz_intake_stats', { days: 30 })
+  ]);
+
+  const years = cov.years || [];
+  const rows = cov.rows || [];
+  const pct = cov.total_cells ? Math.round((1 - cov.empty_cells / cov.total_cells) * 100) : 0;
+
+  const src = intake.by_source || {};
+  const st = intake.by_status || {};
+
+  const grid = rows.map(r => {
+    const cells = years.map(y => {
+      if (y < r.first || y > r.last) return `<span class="cv-cell out" title="${r.name} ${y}: not open"></span>`;
+      const n = r.years[String(y)] || 0;
+      const lvl = n === 0 ? 'zero' : n < 5 ? 'low' : n < 20 ? 'mid' : 'high';
+      return `<span class="cv-cell ${lvl}" title="${esc(r.name)} ${y}: ${n === 0 ? 'nothing yet' : n + ' held'}"></span>`;
+    }).join('');
+    return `<tr>
+      <td class="cv-name">${esc(r.name)}</td>
+      <td class="cv-strip">${cells}</td>
+      <td class="cv-num">${r.held}</td>
+      <td class="cv-num ${r.empty ? 'warn' : ''}">${r.empty}</td>
+    </tr>`;
+  }).join('');
+
+  $('#page').innerHTML = `
+    <div class="page-head">
+      <div><h1>Campaign</h1>
+        <p>Every community across every year it was open — ${cov.total_cells.toLocaleString('en-US')} cells,
+           ${cov.empty_cells.toLocaleString('en-US')} still empty.</p></div>
+    </div>
+
+    <div class="stat-grid">
+      ${tile('Coverage', pct + '%', pct > 50 ? 'gold' : '')}
+      ${tile('Years with nothing', cov.empty_cells)}
+      ${tile('Contributors (30d)', intake.contributors || 0)}
+      ${tile('Auto-rejected (30d)', intake.auto_rejected || 0)}
+      ${tile('Awaiting review', st.pending || 0, (st.pending || 0) ? 'gold' : '')}
+    </div>
+
+    <div class="cv-legend">
+      <span><i class="cv-cell zero"></i> nothing</span>
+      <span><i class="cv-cell low"></i> 1–4</span>
+      <span><i class="cv-cell mid"></i> 5–19</span>
+      <span><i class="cv-cell high"></i> 20+</span>
+      <span><i class="cv-cell out"></i> not open</span>
+      <span class="dim" style="margin-inline-start:auto">
+        Web ${src.web || 0} · WhatsApp ${src.whatsapp || 0} · Imported ${src.import || 0}</span>
+    </div>
+
+    <div class="tbl-wrap"><table class="tbl cv-table">
+      <thead><tr>
+        <th>Community</th>
+        <th><span class="cv-years">${years.map((y, i) =>
+          `<span class="cv-year">${y % 5 === 0 ? String(y).slice(2) : ''}</span>`).join('')}</span></th>
+        <th class="cv-num">Held</th><th class="cv-num">Empty</th>
+      </tr></thead>
+      <tbody>${grid}</tbody>
+    </table></div>`;
+}
+
 /* ---- communities --------------------------------------------------------- */
 
 export async function communities() {
