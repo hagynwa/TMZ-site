@@ -73,7 +73,7 @@ through `https://api.supabase.com/v1/projects/<ref>/database/query`.
 - [x] Grants hardening (migration 10) — see incident note below
 - [x] Reference seed applied (4 regions × 6 langs, 12 event types × 2 langs)
 - [x] 5 pgTAP test files, 34 assertions, all passing on the live linked DB
-- [ ] `scripts/seed-communities.mjs` — port `docs/data.js`'s 49 placeholder communities in
+- [x] `scripts/seed-communities.mjs` — 49 placeholder communities in `tmz_community` (`tmz_map_payload` returns them, verified)
 - [ ] API layer the front end reads instead of `data.js` (`tmz_map_payload`, `tmz_year_payload` exist and are tested; front end not yet wired to them)
 
 **Incident, fixed same session:** this shared project carries a pre-existing
@@ -90,13 +90,24 @@ role-scoped `ALTER DEFAULT PRIVILEGES` so future `tmz_` tables in this session
 don't reinherit it. The other apps' own tables and their default-privilege
 rule were left untouched — out of scope and not this project's to fix.
 
-### ⬜ Phase 3 — Back office (CMS)
+### 🟨 Phase 3 — Back office (CMS) ← **CURRENT**
 
-- [ ] Auth: Google OAuth + "how did you connect to Torah MiTzion?" on first sign-in
-- [ ] Roles: admin, community editor, translator, viewer
-- [ ] CRUD: communities, years, people, tenures, photos, events
-- [ ] Translation coverage view — what is missing, per language
-- [ ] Moderation queue (approve / reject / request detail)
+Static app at `/docs/admin/`, no build step. Talks to Supabase directly with
+the anon key; RLS does the enforcement. `hagai.rettig@gmail.com` is auto-promoted
+to `admin` on first sign-in via a trigger (migration 11); everyone else lands
+as `contributor` and sees an "access pending" screen until an admin promotes
+them.
+
+- [x] Google OAuth (was already enabled on the shared project; added the GitHub Pages redirect URL to `uri_allow_list`)
+- [x] First-run intake: "how did you connect to Torah MiTzion?" writes to `tmz_app_user`
+- [x] Roles: contributor / translator / editor / admin, checked in shell
+- [x] CRUD for communities (with per-locale translations and coverage indicators)
+- [x] CRUD for people (with per-locale display names)
+- [x] Translation coverage — six coloured cells per row, missing locales flagged
+- [x] Moderation queue (approve / reject a pending photograph)
+- [ ] Tenure editor on the person page (add/remove community assignments)
+- [ ] Photo detail: caption, event type, people tagging
+- [ ] Bulk translation view — "everything untranslated in Russian"
 
 ### ⬜ Phase 4 — Upload landing page
 
