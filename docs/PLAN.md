@@ -76,6 +76,7 @@ through `https://api.supabase.com/v1/projects/<ref>/database/query`.
 - [x] `scripts/import-real.mjs` + `scripts/real-data.json` — the **real** 23 communities, 231 people, 236 tenures, taken from torahmitzion.org's own community pages (this replaced the 49 invented ones; `--prune` removed them)
 - [x] API layer the front end reads instead of `data.js` — `docs/api.js` calls `tmz_map_payload` / `tmz_year_payload`; `data.js` survives only behind `?demo=1`
 - [x] `scripts/import-translations.mjs` + `translations.json` / `people-translations.json` — see *Translations* below
+- [x] `tmz_year_payload` returns each tenure's `id`, so a household groups under its own head rather than under whoever is Rosh Kollel (migration `20260904160001`)
 
 **Incident, fixed same session:** this shared project carries a pre-existing
 `ALTER DEFAULT PRIVILEGES` rule (from whichever app was set up first) that
