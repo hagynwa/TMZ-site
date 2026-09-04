@@ -4,7 +4,13 @@
 const $ = sel => document.querySelector(sel);
 const esc = s => String(s).replace(/[&<>"]/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[m]));
 
-const view = { zoom: 'world', custom: null, sel: 'memphis', history: [] };
+const view = { zoom: 'world', custom: null, sel: null, history: [] };
+
+/* Everything the map draws now comes from the database. Loaded once per
+   language change and held here; the geometry in map.js is passed this list
+   rather than reading a global. */
+const STATE = { communities: [], regions: [], loaded: false, error: null };
+const findCommunity = id => STATE.communities.find(c => c.id === id);
 
 /* Every view change remembers where it came from, so zooming out walks back the
    way you came in instead of dumping you at the world. */
@@ -71,7 +77,7 @@ function wireShell() {
     };
     document.addEventListener('click', () => { if (menu) menu.hidden = true; }, { once: true });
     menu.querySelectorAll('[data-lang]').forEach(b => {
-      b.onclick = () => { setLang(b.dataset.lang); render(); };
+      b.onclick = () => { setLang(b.dataset.lang); reloadForLanguage(); };
     });
   }
 }
@@ -105,14 +111,21 @@ function mapView() {
   </div>`;
 }
 
-function drawMap() {
+/* The stage can still measure zero on the frame right after innerHTML — fonts
+   and the banner are yet to settle. Giving up silently there left the map
+   blank with no error to find, so wait for a real size instead of racing
+   layout. */
+function drawMap(attempt = 0) {
   const stage = $('#stage');
   if (!stage) return;
   const W = stage.clientWidth, H = stage.clientHeight;
-  if (W < 40 || H < 40) return;
+  if (W < 40 || H < 40) {
+    if (attempt < 30) requestAnimationFrame(() => drawMap(attempt + 1));
+    return;
+  }
 
   const proj = projection(W, H);
-  const views = buildViews(proj, W, H);
+  const views = buildViews(proj, W, H, STATE.communities, STATE.regions.map(r => r.id));
   /* Fill the chrome BEFORE measuring it: an empty panel measures a few pixels
      tall, and labels then get placed exactly where it is about to appear. */
   drawSide(views);
@@ -125,7 +138,7 @@ function drawMap() {
   const step = Math.max(7, W / 190);
 
   let arcs = '', selArc = '';
-  const pts = COMMUNITIES.map(c => {
+  const pts = STATE.communities.map(c => {
     const mx = proj.fx(c.lon), my = proj.fy(c.lat);
     const seg = arc(jx, jy, mx, my);
     if (c.id === view.sel) selArc = seg; else arcs += seg;
@@ -198,11 +211,10 @@ function drawMap() {
 }
 
 function drawStats() {
-  const open = COMMUNITIES.filter(c => !c.c).length;
-  let photos = 0;
-  for (const c of COMMUNITIES) photos += historyOf(c).total;
+  const open = STATE.communities.filter(c => !c.c).length;
+  const photos = STATE.communities.reduce((a, c) => a + (c.total || 0), 0);
   $('#heroStats').innerHTML = [
-    [COMMUNITIES.length, t('u.communities'), ''],
+    [STATE.communities.length, t('u.communities'), ''],
     [open, t('u.open'), ''],
     [photos, t('u.photographs'), 'gold']
   ].map(([n, lab, cl]) =>
@@ -211,8 +223,8 @@ function drawStats() {
 }
 
 function drawSide(views) {
-  const open = COMMUNITIES.filter(c => !c.c).length;
-  const rows = ['world', ...REGIONS].filter(k => views[k]).map(k =>
+  const open = STATE.communities.filter(c => !c.c).length;
+  const rows = ['world', ...STATE.regions.map(r => r.id)].filter(k => views[k]).map(k =>
     `<button class="rgn${view.zoom === k ? ' on' : ''}" data-view="${k}">
        <span>${esc(t(views[k].key))}</span><span class="n">${num(views[k].n)}</span></button>`).join('');
 
@@ -224,7 +236,7 @@ function drawSide(views) {
       <span>${esc(t('fly.out'))}</span></button>` : ''}
     <div class="legend">
       <div class="lg"><span class="s open"></span>${esc(t('legend.open'))} &mdash; ${num(open)}</div>
-      <div class="lg"><span class="s alum"></span>${esc(t('legend.alumni'))} &mdash; ${num(COMMUNITIES.length - open)}</div>
+      <div class="lg"><span class="s alum"></span>${esc(t('legend.alumni'))} &mdash; ${num(STATE.communities.length - open)}</div>
       <div class="lg"><span class="s clus"></span>${esc(t('legend.cluster'))}</div>
     </div>
     <div class="flyto">${esc(t('fly.to'))}</div>${rows}
@@ -238,8 +250,12 @@ function drawSide(views) {
 }
 
 function drawBand() {
-  const c = community(view.sel);
-  const h = historyOf(c), r = roshOf(c);
+  const c = findCommunity(view.sel);
+  if (!c) { $('#band').innerHTML = ''; return; }
+  /* The Rosh Kollel used to be shown here from a generator. Real tenures need
+     a query per selection, and the year screen already fetches them — so the
+     band carries the community's own span instead, which is always true. */
+  const h = TMZApi.historyFrom(c);
   const holes = h.holes === 0 ? t('band.covered')
     : num(h.holes) + ' ' + esc(h.holes === 1 ? t('band.emptyOne') : t('band.empty'));
 
@@ -255,9 +271,8 @@ function drawBand() {
         <span class="st">${c.c ? esc(t('st.closed')) + ' ' + num(c.c) : esc(t('st.open'))}</span>
       </div>
       <h2>${esc(tf(c.name))}</h2>
-      <div class="rosh"><span class="av"></span>
-        <span>${esc(tf(r.name) ? 'Rav ' + tf(r.name) : '')}<br>
-        <span class="dim">${esc(t('yr.rosh'))} <span dir="ltr">${r.from}&ndash;${r.to}</span></span></span></div>
+      <p class="band-span dim"><span dir="ltr">${c.f}&ndash;${c.c || ' '}</span>
+        &middot; <span dir="ltr">${(c.c || 2026) - c.f + 1}</span> ${esc(t('u.years')).toLowerCase()}</p>
     </div>
     <div class="band-chart">
       <div class="band-head"><span>${esc(t('band.byYear'))}</span>
@@ -287,15 +302,24 @@ function avatar(size) {
     <path d="M12 60 a20 20 0 0 1 40 0 z" fill="#243352"/></svg>`;
 }
 
-function communityView(id, year) {
-  const c = community(id);
+async function communityView(id, year) {
+  const c = findCommunity(id);
   if (!c) { location.hash = '#/'; return ''; }
-  const h = historyOf(c);
-  const yr = year && year >= h.first && year <= h.last ? year : (h.rows.find(r => r.n > 0) || h.rows[0]).year;
-  const row = h.rows.find(r => r.year === yr);
-  const r = roshOf(c), house = householdOf(c), cohort = cohortOf(c, yr);
-  const photos = photosOf(c, yr, row.n);
-  const inRosh = yr >= r.from && yr <= r.to;
+
+  const h = TMZApi.historyFrom(c);
+  const yr = year && year >= h.first && year <= h.last
+    ? year
+    : (h.rows.find(r => r.n > 0) || h.rows[0]).year;
+
+  let data;
+  try {
+    data = await TMZApi.loadYear(c.id, yr, LANG);
+  } catch (e) {
+    return `<div class="cv"><div class="empty-year">
+      <h3>${esc(t('err.load'))}</h3><p>${esc(e.message)}</p></div></div>`;
+  }
+
+  const { rosh, household, cohort, photos } = data;
 
   const rail = h.rows.map(o => {
     const d = Math.abs(o.year - yr);
@@ -303,55 +327,63 @@ function communityView(id, year) {
       style="font-size:${Math.max(11, 46 - d * 4.6).toFixed(1)}px; opacity:${Math.max(0.2, 1 - d * 0.11).toFixed(2)}">${o.year}</button>`;
   }).join('');
 
-  const people = photos.reduce((a, p) => a + p.people, 0);
+  const peopleNamed = photos.reduce((a, p) => a + (p.people || 0), 0);
 
-  const roster = inRosh ? `
+  const roshBlock = rosh ? `
     <section class="rosh-band">
       <div class="rosh-main">
         <div class="pf big">${avatar()}</div>
         <div class="rosh-txt">
           <span class="eyebrow gold">${esc(t('yr.rosh'))}</span>
-          <h3>Rav ${esc(tf(r.name))}</h3>
-          <p class="dim">${esc(tf(c.name))} <span dir="ltr">${r.from}&ndash;${r.to}</span>${
-            r.prior ? ' &middot; ' + esc(t('yr.before')) + ' ' + esc(tf(r.prior.name)) + ' <span dir="ltr">' + r.priorYear + '</span>' : ''}</p>
-          <a class="lnk" href="#/c/${c.id}/${r.from}">${esc(t('yr.seeAll'))} &rarr;</a>
+          <h3>${esc(rosh.person || '')}</h3>
+          <p class="dim">${esc(tf(c.name))}
+            <span dir="ltr">${rosh.from}&ndash;${rosh.to || ''}</span></p>
         </div>
       </div>
+      ${household.length ? `
       <div class="vsep"></div>
       <div class="house">
         <span class="eyebrow">${esc(t('yr.household'))}</span>
-        <div class="people">${house.map(p => `
+        <div class="people">${household.map(p => `
           <div class="card"><div class="pf">${avatar()}</div>
-            <span class="pn">${esc(tf(p.name))}</span>
-            <span class="pr">${p.role ? esc(t('nav.shlichim')) : 'b. <span dir="ltr">' + p.born + '</span>'}</span></div>`).join('')}
+            <span class="pn">${esc(p.person || '')}</span>
+            <span class="pr">${esc(p.role === 'spouse' ? t('nav.shlichim') : t('yr.child'))}</span></div>`).join('')}
         </div>
+      </div>` : ''}
+    </section>` : '';
+
+  const cohortBlock = cohort.length ? `
+    <section class="sec">
+      <div class="sec-head"><span>${esc(t('yr.cohort'))} <span dir="ltr">${yr}</span></span>
+        <span class="dim">${num(cohort.length)}</span></div>
+      <div class="cohort">${cohort.map(p => `
+        <div class="card"><div class="pf">${avatar()}</div>
+          <span class="pn">${esc(p.person || '')}</span>
+          <span class="pr">${esc(p.institution || '')}</span></div>`).join('')}
       </div>
     </section>` : '';
 
-  const photoBlock = row.n === 0 ? `
+  /* Two different kinds of empty, and conflating them would be a lie. Holding
+     no photographs but knowing the roster makes "we know who was here" true,
+     and it is the strongest thing we can say. Knowing neither does not, and
+     the copy has to admit that instead. */
+  const photoBlock = photos.length === 0 ? `
     <section class="empty-year">
       <h3>${esc(t('yr.empty'))}</h3>
-      <p>${esc(t('yr.emptySub'))}</p>
+      <p>${esc(rosh || cohort.length ? t('yr.emptySub') : t('yr.emptyNothing'))}</p>
       <a class="btn-gold" href="#/contribute">${esc(t('cta.send'))}</a>
     </section>` : `
     <section class="sec">
       <div class="sec-head"><span>${esc(t('yr.photos'))}</span>
-        <span class="dim">${num(row.n)} ${esc(t('band.held'))} &middot; ${num(Math.max(1, Math.round(row.n / 5)))} ${esc(t('yr.awaiting'))}</span></div>
+        <span class="dim">${num(photos.length)} ${esc(t('band.held'))}</span></div>
       <div class="photos">
-        ${photos.slice(0, 4).map(p => `
-          <figure class="photo">${photoArt(p)}
-            <figcaption><span class="ev">${esc(tf(p.event))}</span>
-              <span class="mt"><span dir="ltr">${p.day} ${p.month} ${p.year}</span> &middot; ${num(p.people)} ${esc(t('u.identified'))}</span>
+        ${photos.slice(0, 6).map(p => `
+          <figure class="photo">
+            <img src="${esc(p.url)}" alt="${esc(p.event_name || '')}" loading="lazy">
+            <figcaption><span class="ev">${esc(p.event_name || '')}</span>
+              <span class="mt">${p.taken_on ? `<span dir="ltr">${esc(p.taken_on)}</span>` : ''}
+                ${p.people ? ' &middot; ' + num(p.people) + ' ' + esc(t('u.identified')) : ''}</span>
             </figcaption></figure>`).join('')}
-        <aside class="meta">
-          <span class="eyebrow gold">${esc(tf(photos[0].event))}</span>
-          <div class="mrow"><span>${esc(t('yr.date'))}</span><span dir="ltr">${photos[0].day} ${photos[0].month} ${photos[0].year}</span></div>
-          <div class="mrow"><span>${esc(t('yr.place'))}</span><span>${esc(tf(photos[0].venue))}</span></div>
-          <div class="mrow"><span>${esc(t('yr.sentBy'))}</span><span>${photos[0].source === 'whatsapp' ? esc(t('yr.whatsapp')) : esc(t('cta.add'))}</span></div>
-          <span class="eyebrow mt2">${esc(t('yr.peopleIdent'))} &mdash; ${num(photos[0].people)}</span>
-          <div class="chips">${cohort.slice(0, 5).map(p => `<span class="chip">${esc(tf(p.name))}</span>`).join('')}
-            <span class="chip">+${num(Math.max(0, photos[0].people - 5))} ${esc(t('yr.more'))}</span></div>
-        </aside>
       </div>
     </section>`;
 
@@ -373,23 +405,13 @@ function communityView(id, year) {
       </div>
       <div class="ystats">
         <div class="stat"><span class="v">${num(cohort.length)}</span><span class="k">${esc(t('u.shlichim'))}</span></div>
-        <div class="stat"><span class="v">${num(row.n)}</span><span class="k">${esc(t('u.photographs'))}</span></div>
-        <div class="stat"><span class="v">${num(people)}</span><span class="k">${esc(t('u.peopleNamed'))}</span></div>
+        <div class="stat"><span class="v">${num(photos.length)}</span><span class="k">${esc(t('u.photographs'))}</span></div>
+        <div class="stat"><span class="v">${num(peopleNamed)}</span><span class="k">${esc(t('u.peopleNamed'))}</span></div>
       </div>
     </div>
 
-    ${roster}
-
-    <section class="sec">
-      <div class="sec-head"><span>${esc(t('yr.cohort'))} <span dir="ltr">${yr}</span></span>
-        <span class="dim">${num(cohort.length)} ${esc(t('yr.returned'))}</span></div>
-      <div class="cohort">${cohort.map(p => `
-        <div class="card"><div class="pf">${avatar()}</div>
-          <span class="pn">${esc(tf(p.name))}</span>
-          <span class="pr">${esc(p.from)}</span></div>`).join('')}
-      </div>
-    </section>
-
+    ${roshBlock}
+    ${cohortBlock}
     ${photoBlock}
   </div>`;
 }
@@ -397,7 +419,7 @@ function communityView(id, year) {
 /* ---- contribute ---------------------------------------------------------- */
 
 function contributeView() {
-  const opts = COMMUNITIES.slice().sort((a, b) => tf(a.name).localeCompare(tf(b.name)))
+  const opts = STATE.communities.slice().sort((a, b) => tf(a.name).localeCompare(tf(b.name)))
     .map(c => `<option value="${esc(c.id)}">${esc(tf(c.name))}</option>`).join('');
   return `
   <div class="cn">
@@ -536,19 +558,68 @@ function parseRoute() {
   return { name: 'map' };
 }
 
-function render() {
+/* The community list has to be in hand before any view can draw, and it is
+   language-dependent, so it reloads when the language does. */
+async function loadState() {
+  try {
+    const d = await TMZApi.loadMap(LANG);
+    STATE.communities = d.communities;
+    STATE.regions = d.regions.length
+      ? d.regions
+      : [...new Set(d.communities.map(c => c.rg))].map(id => ({ id, name: null }));
+    STATE.error = null;
+  } catch (e) {
+    STATE.communities = [];
+    STATE.regions = [];
+    STATE.error = e.message;
+  }
+  STATE.loaded = true;
+  // Keep a valid selection: the first community with photographs, else the first.
+  if (!findCommunity(view.sel)) {
+    const withPhotos = STATE.communities.find(c => c.total > 0);
+    view.sel = (withPhotos || STATE.communities[0] || {}).id ?? null;
+  }
+}
+
+function banner() {
+  if (STATE.error) {
+    return `<div class="site-banner err">${esc(t('err.load'))} &mdash; ${esc(STATE.error)}</div>`;
+  }
+  if (TMZApi.DEMO) {
+    return `<div class="site-banner demo">${esc(t('banner.demo'))}
+      <a href="${location.pathname}${location.hash}">${esc(t('banner.demoOff'))}</a></div>`;
+  }
+  const photos = STATE.communities.reduce((a, c) => a + (c.total || 0), 0);
+  if (STATE.loaded && photos === 0) {
+    return `<div class="site-banner">${esc(t('banner.empty'))}
+      <a href="#/contribute">${esc(t('cta.send'))} &rarr;</a></div>`;
+  }
+  return '';
+}
+
+async function render() {
   const r = parseRoute();
   const root = $('#app');
   document.body.dataset.route = r.name;
 
+  if (!STATE.loaded) {
+    root.innerHTML = `<div class="site-loading">${esc(t('u.loading'))}</div>`;
+    await loadState();
+  }
+
   if (r.name === 'map') {
-    root.innerHTML = shell() + mapView();
+    root.innerHTML = shell() + banner() + mapView();
     wireShell();
     drawBand();
     drawStats();
-    requestAnimationFrame(drawMap);
+    requestAnimationFrame(() => drawMap());
   } else if (r.name === 'community') {
-    root.innerHTML = shell() + communityView(r.id, r.year) + footer();
+    root.innerHTML = shell() + banner() +
+      `<div class="site-loading">${esc(t('u.loading'))}</div>` + footer();
+    wireShell();
+    // the year screen needs a second round trip, so the shell goes up first
+    const body = await communityView(r.id, r.year);
+    root.innerHTML = shell() + banner() + body + footer();
     wireShell();
     root.querySelectorAll('[data-year]').forEach(b => {
       b.onclick = () => { location.hash = `#/c/${r.id}/${b.dataset.year}`; };
@@ -561,6 +632,13 @@ function render() {
     wireContribute();
   }
   window.scrollTo(0, 0);
+}
+
+/* Switching language changes the resolved names, so the payload is refetched
+   rather than translated in place. */
+async function reloadForLanguage() {
+  STATE.loaded = false;
+  await render();
 }
 
 window.addEventListener('hashchange', render);

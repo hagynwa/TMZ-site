@@ -175,6 +175,27 @@ export const sb = {
     return pg(`/rpc/${fn}`, { method: 'POST', body: args });
   },
 
+  /* Storage sits on a different path than PostgREST, so it does not go through
+     pg(). Copy is server-side — the bytes never travel to the browser. */
+  async storageCopy(bucketId, sourceKey, destinationBucket, destinationKey) {
+    const s = await ensureSession();
+    const res = await fetch(`${window.TMZ_SUPABASE_URL}/storage/v1/object/copy`, {
+      method: 'POST',
+      headers: { ...authHeaders(s), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bucketId, sourceKey, destinationBucket, destinationKey })
+    });
+    if (!res.ok) throw new Error(`copy → ${res.status} ${await res.text()}`);
+    return res.json();
+  },
+
+  async storageRemove(bucket, key) {
+    const s = await ensureSession();
+    const res = await fetch(`${window.TMZ_SUPABASE_URL}/storage/v1/object/${bucket}/${key}`, {
+      method: 'DELETE', headers: authHeaders(s)
+    });
+    if (!res.ok) throw new Error(`remove → ${res.status} ${await res.text()}`);
+  },
+
   async me() {
     const s = await ensureSession();
     if (!s) return null;

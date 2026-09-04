@@ -150,12 +150,13 @@ function placeLabels(markers, blocked, W, H, rtl) {
 }
 
 /* Each region's view is fitted to its own bounding box, so a region added in the
-   back office needs no code. */
-function buildViews(proj, W, H) {
+   back office needs no code. The community list is passed in rather than read
+   from a global: it arrives from the database now, not a file. */
+function buildViews(proj, W, H, communities, regions) {
   const pad = { x0: W * 0.06, x1: W * 0.94, y0: H * 0.10, y1: H * 0.92 };
-  const views = { world: { s: 1, cx: W / 2, cy: H / 2, key: 'fly.world', n: COMMUNITIES.length } };
-  for (const rg of REGIONS) {
-    const mem = COMMUNITIES.filter(c => c.rg === rg);
+  const views = { world: { s: 1, cx: W / 2, cy: H / 2, key: 'fly.world', n: communities.length } };
+  for (const rg of regions) {
+    const mem = communities.filter(c => c.rg === rg);
     if (!mem.length) continue;
     const xs = mem.map(c => proj.fx(c.lon)), ys = mem.map(c => proj.fy(c.lat));
     const bx0 = Math.min(...xs), bx1 = Math.max(...xs);

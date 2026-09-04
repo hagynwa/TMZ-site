@@ -52,7 +52,14 @@ const STRINGS = {
     'con.replace': 'Choose a different one',
     'con.sending': 'Sending…',
     'foot.mock': 'Design mockup — every name, date and count is invented placeholder data.',
-    'foot.canvas': 'Design canvas'
+    'foot.canvas': 'Design canvas',
+    'u.loading': 'Loading…',
+    'err.load': 'Could not reach the archive.',
+    'yr.child': 'child',
+    'yr.emptyNothing': 'We have not recorded who was here either. If you know, tell us.',
+    'banner.empty': 'The archive is open and empty. Every photograph is the first of its year.',
+    'banner.demo': 'Showing invented sample data, not the real archive.',
+    'banner.demoOff': 'Show the real archive',
   },
   he: {
     'nav.map': 'מפה', 'nav.communities': 'קהילות', 'nav.shlichim': 'שליחים', 'nav.about': 'אודות',
@@ -94,7 +101,14 @@ const STRINGS = {
     'con.replace': 'בחרו תמונה אחרת',
     'con.sending': 'שולח…',
     'foot.mock': 'אב־טיפוס עיצובי — כל שם, תאריך ומספר הם נתוני דמה.',
-    'foot.canvas': 'קנבס העיצוב'
+    'foot.canvas': 'קנבס העיצוב',
+    'u.loading': 'טוען…',
+    'err.load': 'לא הצלחנו להגיע לארכיון.',
+    'yr.child': 'ילד/ה',
+    'yr.emptyNothing': 'גם לא תיעדנו מי היה כאן. אם אתם יודעים, ספרו לנו.',
+    'banner.empty': 'הארכיון פתוח וריק. כל תמונה היא הראשונה בשנתה.',
+    'banner.demo': 'מוצגים נתוני דמה מומצאים, לא הארכיון האמיתי.',
+    'banner.demoOff': 'להצגת הארכיון האמיתי',
   },
   ru: {
     'nav.map': 'Карта', 'nav.communities': 'Общины', 'nav.shlichim': 'Шлихим', 'nav.about': 'О нас',
@@ -136,7 +150,14 @@ const STRINGS = {
     'con.replace': 'Выбрать другую',
     'con.sending': 'Отправка…',
     'foot.mock': 'Дизайн-макет — все имена, даты и числа вымышлены.',
-    'foot.canvas': 'Дизайн-холст'
+    'foot.canvas': 'Дизайн-холст',
+    'u.loading': 'Загрузка…',
+    'err.load': 'Не удалось связаться с архивом.',
+    'yr.child': 'ребёнок',
+    'yr.emptyNothing': 'Мы также не знаем, кто здесь был. Если вы знаете — расскажите нам.',
+    'banner.empty': 'Архив открыт и пуст. Каждая фотография — первая в своём году.',
+    'banner.demo': 'Показаны вымышленные данные, а не настоящий архив.',
+    'banner.demoOff': 'Показать настоящий архив',
   },
   fr: {
     'nav.map': 'Carte', 'nav.communities': 'Communautés', 'nav.shlichim': 'Chlihim', 'nav.about': 'À propos',
@@ -178,7 +199,14 @@ const STRINGS = {
     'con.replace': 'En choisir une autre',
     'con.sending': 'Envoi…',
     'foot.mock': 'Maquette de conception — chaque nom, date et chiffre est fictif.',
-    'foot.canvas': 'Canevas de conception'
+    'foot.canvas': 'Canevas de conception',
+    'u.loading': 'Chargement…',
+    'err.load': 'Impossible de joindre les archives.',
+    'yr.child': 'enfant',
+    'yr.emptyNothing': 'Nous ne savons pas non plus qui était là. Si vous le savez, dites-le nous.',
+    'banner.empty': 'Les archives sont ouvertes et vides. Chaque photographie est la première de son année.',
+    'banner.demo': 'Données d’exemple inventées, pas les vraies archives.',
+    'banner.demoOff': 'Voir les vraies archives',
   },
   de: {
     'nav.map': 'Karte', 'nav.communities': 'Gemeinden', 'nav.shlichim': 'Schlichim', 'nav.about': 'Über uns',
@@ -220,7 +248,14 @@ const STRINGS = {
     'con.replace': 'Eine andere wählen',
     'con.sending': 'Senden…',
     'foot.mock': 'Design-Mockup — jeder Name, jedes Datum und jede Zahl ist erfunden.',
-    'foot.canvas': 'Design-Canvas'
+    'foot.canvas': 'Design-Canvas',
+    'u.loading': 'Wird geladen…',
+    'err.load': 'Das Archiv war nicht erreichbar.',
+    'yr.child': 'Kind',
+    'yr.emptyNothing': 'Wir wissen auch nicht, wer hier war. Wenn Sie es wissen, sagen Sie es uns.',
+    'banner.empty': 'Das Archiv ist offen und leer. Jede Fotografie ist die erste ihres Jahres.',
+    'banner.demo': 'Erfundene Beispieldaten, nicht das echte Archiv.',
+    'banner.demoOff': 'Echtes Archiv zeigen',
   },
   es: {
     'nav.map': 'Mapa', 'nav.communities': 'Comunidades', 'nav.shlichim': 'Shlijim', 'nav.about': 'Acerca de',
@@ -262,7 +297,14 @@ const STRINGS = {
     'con.replace': 'Elegir otra',
     'con.sending': 'Enviando…',
     'foot.mock': 'Maqueta de diseño — cada nombre, fecha y cifra es inventada.',
-    'foot.canvas': 'Lienzo de diseño'
+    'foot.canvas': 'Lienzo de diseño',
+    'u.loading': 'Cargando…',
+    'err.load': 'No se pudo acceder al archivo.',
+    'yr.child': 'hijo/a',
+    'yr.emptyNothing': 'Tampoco sabemos quién estuvo aquí. Si tú lo sabes, cuéntanoslo.',
+    'banner.empty': 'El archivo está abierto y vacío. Cada fotografía es la primera de su año.',
+    'banner.demo': 'Datos de ejemplo inventados, no el archivo real.',
+    'banner.demoOff': 'Ver el archivo real',
   }
 };
 

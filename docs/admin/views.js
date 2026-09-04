@@ -611,12 +611,38 @@ export async function photos() {
   });
 }
 
+/* Approving moves a file, it does not just flip a column. The original stays
+   in the private bucket; approval copies it into the public one and records
+   that path. Until public_path is set the payloads will not serve or even
+   count the photograph, so the copy has to succeed before the status does. */
 async function setPhotoStatus(id, status) {
   try {
     const patch = { status };
-    if (status === 'approved') patch.published_at = new Date().toISOString();
+
+    if (status === 'approved') {
+      const [row] = await sb.from('tmz_photo', {})
+        .select('storage_path,public_path', { filter: { id: `eq.${id}` } });
+      if (!row) throw new Error('That photograph no longer exists.');
+
+      if (!row.public_path) {
+        const dest = row.storage_path;
+        await sb.storageCopy('tmz-photo-originals', row.storage_path, 'tmz-photo-public', dest);
+        patch.public_path = dest;
+      }
+      patch.published_at = new Date().toISOString();
+    } else {
+      // Taking it back down removes the servable copy; the original is kept.
+      const [row] = await sb.from('tmz_photo', {})
+        .select('public_path', { filter: { id: `eq.${id}` } });
+      if (row?.public_path) {
+        await sb.storageRemove('tmz-photo-public', row.public_path).catch(() => {});
+        patch.public_path = null;
+      }
+      patch.published_at = null;
+    }
+
     await sb.from('tmz_photo').update(patch, { id: `eq.${id}` });
-    toast(status === 'approved' ? 'Photo approved.' : 'Photo rejected.');
+    toast(status === 'approved' ? 'Photo approved and published.' : 'Photo rejected.');
     photos();
   } catch (e) { alert(e.message); }
 }

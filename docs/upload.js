@@ -3,8 +3,9 @@
    that cannot be trusted to a browser (screening, storage, the database) is
    left to the tmz-upload edge function. */
 
-const SUPABASE_URL = 'https://xuoxkmwtdascazutoaxs.supabase.co';
-const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1b3hrbXd0ZGFzY2F6dXRvYXhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk3MjI5MDcsImV4cCI6MjA3NTI5ODkwN30.Cy1W0lXNuP-lXbRyGOPjz2fL6ano-Nzxf7HBoRv9EJM';
+/* These plain scripts share one global scope, so the project's endpoint and
+   anon key are declared once in api.js and reused here rather than repeated. */
+const UPLOAD_URL = `${TMZ_SUPABASE_URL}/functions/v1/tmz-upload`;
 
 /* dHash: shrink to 9x8 greyscale, then record whether each pixel is brighter
    than the one to its right. 64 bits that survive rescaling and recompression,
@@ -70,12 +71,12 @@ async function prepare(file) {
 }
 
 async function submit(payload) {
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/tmz-upload`, {
+  const res = await fetch(UPLOAD_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      apikey: ANON_KEY,
-      Authorization: `Bearer ${ANON_KEY}`
+      apikey: TMZ_ANON_KEY,
+      Authorization: `Bearer ${TMZ_ANON_KEY}`
     },
     body: JSON.stringify(payload)
   });
