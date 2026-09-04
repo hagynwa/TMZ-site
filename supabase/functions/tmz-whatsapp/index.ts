@@ -593,8 +593,13 @@ async function handle(body: any, ch: Channel) {
   // ---- screening, which is the gate ----
   let verdict: Verdict;
   if (ch.forceVerdict) {
+    /* Two synthetic passes, so a forced run writes the same THREE moderation
+       rows a real one does. Without them the console exercised a one-row
+       insert and missed PGRST102 entirely — which is exactly how that bug
+       survived until a real screening ran. */
     verdict = {
-      decision: ch.forceVerdict, confidence: 1, facts: {}, scores: {}, passes: [],
+      decision: ch.forceVerdict, confidence: 1, facts: {}, scores: {},
+      passes: [{ pass: 'assess', raw: null }, { pass: 'challenge', raw: null }],
       reasons: ['VERDICT FORCED BY THE TEST CONSOLE — no model looked at this picture']
     };
     ch.trace('screening SKIPPED (forced)', { decision: ch.forceVerdict });
@@ -660,10 +665,17 @@ async function handle(body: any, ch: Channel) {
 
   await pg('/tmz_moderation', {
     method: 'POST',
+    /* Every object in a PostgREST bulk insert must carry the SAME KEYS — it
+       builds one INSERT from the first row's shape and rejects the rest with
+       "All object keys must match". The per-pass rows had no `decision` and
+       the final row did, so the whole insert failed the moment real screening
+       produced passes to record. It stayed hidden while the model was over
+       quota, because then there are no passes and the array has one row. */
     body: JSON.stringify([
       ...verdict.passes.map(p => ({
         photo_id: photo.id, model: GEMINI_MODEL, pass: p.pass,
         verdict: verdict.decision === 'reject' ? 'rejected' : 'pending',
+        decision: null,
         scores: verdict.scores ?? {}, reasons: verdict.reasons ?? []
       })),
       {

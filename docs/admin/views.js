@@ -573,76 +573,271 @@ function quickTranslate(kind, id, lang, entities) {
   el.querySelector('#q_val').focus();
 }
 
-/* ---- photos / moderation queue ------------------------------------------ */
+/* ---- photos ------------------------------------------------------------- */
+
+/* Two lists behind one page, because they answer two different questions.
+   "Waiting" is the old moderation queue and still matters — it holds whatever
+   the agent would not clear. "Published by the agent" is new and matters more:
+   nothing there was seen by a person before it went up, so this is where a
+   person sees it afterwards. Publishing without review is only defensible if
+   the undo is one click and the record of every decision is right there. */
+
+const PHOTO_TABS = { pending: 'Waiting', agent: 'Published by the agent', all: 'Everything' };
+let photoTab = 'pending';
+
+const PUBLIC_BASE = `${window.TMZ_SUPABASE_URL}/storage/v1/object/public/tmz-photo-public/`;
+const thumb = p => p.public_path
+  ? `<img class="thumb" src="${PUBLIC_BASE}${encodeURI(p.public_path)}" alt="" loading="lazy">`
+  : `<span class="thumb none" title="Not published — the original stays private">—</span>`;
 
 export async function photos() {
-  const [pending, approved, rejected] = await Promise.all([
+  const [pending, agentUp, counts] = await Promise.all([
     sb.from('tmz_photo', {}).select(
-      'id,year,storage_path,source,created_at,tmz_community(slug,tmz_community_tr(lang,name))',
+      'id,year,storage_path,public_path,source,status,agent_decision,created_at,' +
+      'tmz_community(slug,tmz_community_tr(lang,name))',
       { filter: { status: 'eq.pending' }, order: 'created_at.desc', limit: 200 }),
-    sb.from('tmz_photo', {}).select('id', { filter: { status: 'eq.approved' } }),
-    sb.from('tmz_photo', {}).select('id', { filter: { status: 'eq.rejected' } })
+    sb.from('tmz_photo', {}).select(
+      'id,year,storage_path,public_path,source,status,agent_decision,published_at,' +
+      'tmz_community(slug,tmz_community_tr(lang,name))',
+      { filter: { published_by: 'eq.agent' }, order: 'published_at.desc', limit: 200 }),
+    sb.from('tmz_photo', {}).select('id,status', { limit: 2000 })
   ]);
+
+  const by = s => counts.filter(c => c.status === s).length;
+  const rows = photoTab === 'pending' ? pending
+             : photoTab === 'agent' ? agentUp
+             : await sb.from('tmz_photo', {}).select(
+                 'id,year,storage_path,public_path,source,status,agent_decision,created_at,' +
+                 'tmz_community(slug,tmz_community_tr(lang,name))',
+                 { order: 'created_at.desc', limit: 200 });
 
   $('#page').innerHTML = `
     <div class="page-head">
-      <div><h1>Moderation queue</h1>
-        <p>${pending.length} waiting · ${approved.length} approved · ${rejected.length} rejected.</p></div>
+      <div><h1>Photographs</h1>
+        <p>${by('pending')} waiting · ${by('approved')} on the site · ${by('rejected')} rejected
+           · ${agentUp.length} published by the agent.</p></div>
     </div>
-    ${pending.length === 0 ? `<div class="empty">Nothing waiting. New submissions from the upload page or WhatsApp appear here first.</div>` : `
+    <div class="tabs">${Object.entries(PHOTO_TABS).map(([k, label]) =>
+      `<button class="tab ${photoTab === k ? 'on' : ''}" data-tab="${k}">${label}</button>`).join('')}</div>
+    ${rows.length === 0 ? `<div class="empty">${
+      photoTab === 'agent'
+        ? 'The agent has not published anything yet.'
+        : 'Nothing here. Photographs arrive from the upload page and from WhatsApp.'
+    }</div>` : `
     <div class="tbl-wrap"><table class="tbl">
-      <thead><tr><th>Submitted</th><th>Community</th><th>Year</th><th>Source</th><th>Path</th><th></th></tr></thead>
-      <tbody>${pending.map(p => `<tr data-id="${p.id}">
-        <td class="mono">${new Date(p.created_at).toISOString().slice(0, 16).replace('T', ' ')}</td>
+      <thead><tr><th></th><th>Community</th><th>Year</th><th>Source</th><th>Status</th><th>Screening</th><th></th></tr></thead>
+      <tbody>${rows.map(p => `<tr data-id="${p.id}">
+        <td>${thumb(p)}</td>
         <td>${esc(pickName((p.tmz_community || {}).tmz_community_tr) || (p.tmz_community || {}).slug || '—')}</td>
-        <td>${p.year || '—'}</td>
+        <td>${p.year || '<span class="dim">not placed</span>'}</td>
         <td>${esc(p.source)}</td>
-        <td class="mono">${esc(p.storage_path)}</td>
+        <td><span class="pill ${p.status}">${esc(p.status)}</span></td>
+        <td>${p.agent_decision ? `<span class="pill ${p.agent_decision}">${esc(p.agent_decision)}</span>` : '<span class="dim">—</span>'}</td>
         <td class="actions">
-          <button class="approve">Approve</button>
-          <button class="del">Reject</button>
+          <button class="edit">Open</button>
+          ${p.status === 'approved'
+            ? `<button class="del down">Take down</button>`
+            : `<button class="up">Publish</button><button class="del">Reject</button>`}
         </td>
       </tr>`).join('')}</tbody>
     </table></div>`}`;
 
+  document.querySelectorAll('#page .tab').forEach(b => {
+    b.onclick = () => { photoTab = b.dataset.tab; photos(); };
+  });
   document.querySelectorAll('#page tbody tr').forEach(tr => {
-    tr.querySelector('.approve').onclick = () => setPhotoStatus(tr.dataset.id, 'approved');
-    tr.querySelector('.del').onclick = () => setPhotoStatus(tr.dataset.id, 'rejected');
+    const row = rows.find(r => r.id === tr.dataset.id);
+    tr.querySelector('.edit').onclick = () => photoDrawer(row);
+    tr.querySelector('.up')?.addEventListener('click', () => setPhotoStatus(tr.dataset.id, 'approved'));
+    tr.querySelector('.del')?.addEventListener('click', () => setPhotoStatus(tr.dataset.id, 'rejected'));
   });
 }
 
-/* Approving moves a file, it does not just flip a column. The original stays
-   in the private bucket; approval copies it into the public one and records
-   that path. Until public_path is set the payloads will not serve or even
-   count the photograph, so the copy has to succeed before the status does. */
+/* Everything the brief asks a photograph to carry: its text in any of the six
+   languages, when it was taken, where, what the occasion was, and who is in
+   it. The screening record sits underneath, because for anything the agent
+   published that record is the only account of why it is on the site. */
+async function photoDrawer(row) {
+  const [full] = await sb.from('tmz_photo', {}).select(
+    'id,community_id,year,taken_on,venue,event_type_id,status,source,storage_path,' +
+    'public_path,published_by,published_at,width,height,bytes,phash,submitter_ref,agent_decision,' +
+    'tmz_photo_tr(lang,caption),tmz_photo_person(person_id,tmz_person(tmz_person_tr(lang,display_name)))',
+    { filter: { id: `eq.${row.id}` } });
+  const p = full || row;
+
+  const [{ communities }, events, mods] = await Promise.all([
+    lookups(),
+    sb.from('tmz_event_type', {}).select('id,tmz_event_type_tr(lang,name)', { order: 'sort.asc' }),
+    sb.from('tmz_moderation', {}).select('pass,decision,model,verdict,scores,reasons,decided_at',
+      { filter: { photo_id: `eq.${p.id}` }, order: 'decided_at.asc' })
+  ]);
+
+  const capOf = l => (p.tmz_photo_tr || []).find(t => t.lang === l)?.caption || '';
+  const tagged = (p.tmz_photo_person || []).map(t => ({
+    id: t.person_id,
+    name: pickName((t.tmz_person || {}).tmz_person_tr) || t.person_id.slice(0, 8)
+  }));
+
+  const el = openDrawer('Photograph', `
+    ${p.public_path
+      ? `<img class="preview" src="${PUBLIC_BASE}${encodeURI(p.public_path)}" alt="">`
+      : `<div class="preview none">Not published, so there is no public copy to show.
+           The original is in the private bucket.</div>`}
+
+    <div class="grid2">
+      <div><label>Community</label>
+        <select id="f_comm"><option value="">— not placed —</option>
+          ${communities.map(c => `<option value="${c.id}" ${c.id === p.community_id ? 'selected' : ''}>
+            ${esc(pickName(c.tmz_community_tr) || c.slug)}</option>`).join('')}
+        </select></div>
+      <div><label>Year</label><input id="f_year" type="number" min="1990" max="2030" value="${p.year ?? ''}"></div>
+      <div><label>Date taken <span class="dim">if known</span></label>
+        <input id="f_date" type="date" value="${p.taken_on ?? ''}"></div>
+      <div><label>Occasion</label>
+        <select id="f_event"><option value="">— none —</option>
+          ${events.map(e => `<option value="${e.id}" ${e.id === p.event_type_id ? 'selected' : ''}>
+            ${esc(pickName(e.tmz_event_type_tr) || e.id)}</option>`).join('')}
+        </select></div>
+    </div>
+    <label>Place</label><input id="f_venue" value="${esc(p.venue ?? '')}">
+
+    <h3 class="drawer-h3">Caption</h3>
+    ${LANGS.map(l => `<label>${LANG_NAMES[l]}</label>
+      <input class="cap" data-lang="${l}" value="${esc(capOf(l))}" dir="${l === 'he' ? 'rtl' : 'ltr'}">`).join('')}
+
+    <h3 class="drawer-h3">Who is in it</h3>
+    <div id="tags" class="tags">${tagged.length
+      ? tagged.map(t => `<span class="tag" data-person="${t.id}">${esc(t.name)}<button aria-label="Remove">✕</button></span>`).join('')
+      : '<span class="dim">Nobody tagged yet.</span>'}</div>
+    <div class="row-inline">
+      <input id="f_person" list="peopleList" placeholder="Type a name…">
+      <datalist id="peopleList"></datalist>
+      <button class="btn" id="addTag">Tag</button>
+    </div>
+
+    <h3 class="drawer-h3">Screening record</h3>
+    ${mods.length ? `<table class="tbl mini"><tbody>${mods.map(m => `<tr>
+      <td class="mono">${esc(m.pass || '—')}</td>
+      <td>${esc(m.decision || m.verdict)}</td>
+      <td class="mono dim">${esc(m.model)}</td>
+      <td class="dim">${esc((m.reasons || []).join('; ')).slice(0, 160)}</td>
+    </tr>`).join('')}</tbody></table>` : '<p class="dim">No screening recorded.</p>'}
+
+    <p class="dim mono" style="margin-top:14px">
+      ${p.width ?? '?'}×${p.height ?? '?'} · ${Math.round((p.bytes ?? 0) / 1024)} KB · ${esc(p.source)}
+      ${p.published_by ? ` · published by ${esc(p.published_by)}` : ''}<br>
+      ${esc(p.storage_path)}<br>${esc(p.submitter_ref ?? '')}
+    </p>`,
+    [
+      { label: 'Save', kind: 'solid', onClick: save },
+      p.status === 'approved'
+        ? { label: 'Take down', kind: 'danger', onClick: () => { closeDrawer(); setPhotoStatus(p.id, 'rejected'); } }
+        : { label: 'Publish', kind: 'solid', onClick: () => { closeDrawer(); setPhotoStatus(p.id, 'approved'); } }
+    ]);
+
+  /* The name list is only fetched when the drawer opens — 231 people is small,
+     but the photographs list is not the place to carry it. */
+  const people = await sb.from('tmz_person', {}).select(
+    'id,tmz_person_tr(lang,display_name)', { limit: 1000 });
+  const nameOf = pr => pickName(pr.tmz_person_tr) || pr.id.slice(0, 8);
+  el.querySelector('#peopleList').innerHTML =
+    people.map(pr => `<option value="${esc(nameOf(pr))}">`).join('');
+
+  const tagsEl = el.querySelector('#tags');
+  const wire = span => span.querySelector('button').onclick = () => span.remove();
+  tagsEl.querySelectorAll('.tag').forEach(wire);
+
+  el.querySelector('#addTag').onclick = () => {
+    const typed = el.querySelector('#f_person').value.trim();
+    const hit = people.find(pr => nameOf(pr).toLowerCase() === typed.toLowerCase());
+    if (!hit) { toast('No person by that name. Add them on the People page first.', 'error'); return; }
+    if (tagsEl.querySelector(`[data-person="${hit.id}"]`)) return;
+    tagsEl.querySelector('.dim')?.remove();
+    const span = document.createElement('span');
+    span.className = 'tag';
+    span.dataset.person = hit.id;
+    span.innerHTML = `${esc(nameOf(hit))}<button aria-label="Remove">✕</button>`;
+    wire(span);
+    tagsEl.append(span);
+    el.querySelector('#f_person').value = '';
+  };
+
+  async function save() {
+    try {
+      const year = el.querySelector('#f_year').value;
+      await sb.from('tmz_photo').update({
+        community_id: el.querySelector('#f_comm').value || null,
+        year: year ? Number(year) : null,
+        taken_on: el.querySelector('#f_date').value || null,
+        event_type_id: el.querySelector('#f_event').value || null,
+        venue: el.querySelector('#f_venue').value.trim() || null
+      }, { id: `eq.${p.id}` });
+
+      /* Captions: write the ones with text, delete the ones emptied. A blank
+         row would satisfy the fallback chain and show a caption of nothing. */
+      const caps = Array.from(el.querySelectorAll('.cap'))
+        .map(i => ({ photo_id: p.id, lang: i.dataset.lang, caption: i.value.trim() }));
+      const filled = caps.filter(c => c.caption);
+      const emptied = caps.filter(c => !c.caption).map(c => c.lang);
+      if (filled.length) await sb.from('tmz_photo_tr').upsert(filled);
+      for (const lang of emptied) {
+        await sb.from('tmz_photo_tr').delete({ photo_id: `eq.${p.id}`, lang: `eq.${lang}` });
+      }
+
+      const want = Array.from(tagsEl.querySelectorAll('.tag')).map(s => s.dataset.person);
+      const had = tagged.map(t => t.id);
+      const added = want.filter(id => !had.includes(id));
+      const removed = had.filter(id => !want.includes(id));
+      if (added.length) {
+        await sb.from('tmz_photo_person').insert(
+          added.map(person_id => ({ photo_id: p.id, person_id })));
+      }
+      for (const person_id of removed) {
+        await sb.from('tmz_photo_person').delete({ photo_id: `eq.${p.id}`, person_id: `eq.${person_id}` });
+      }
+
+      closeDrawer();
+      toast('Saved.');
+      photos();
+    } catch (e) { alert(e.message); }
+  }
+}
+
+/* Publishing moves a file, it does not just flip a column. The DERIVED copy is
+   what gets published — sanitised and resized — never the original bytes; that
+   distinction is the whole point of keeping two of them. Taking a photograph
+   down deletes the public object, because a row change alone leaves the URL
+   answering 200. */
 async function setPhotoStatus(id, status) {
   try {
     const patch = { status };
 
     if (status === 'approved') {
       const [row] = await sb.from('tmz_photo', {})
-        .select('storage_path,public_path', { filter: { id: `eq.${id}` } });
+        .select('storage_path,derived_path,public_path', { filter: { id: `eq.${id}` } });
       if (!row) throw new Error('That photograph no longer exists.');
 
       if (!row.public_path) {
-        const dest = row.storage_path;
-        await sb.storageCopy('tmz-photo-originals', row.storage_path, 'tmz-photo-public', dest);
+        const source = row.derived_path || row.storage_path;
+        const dest = source.replace(/^derived\//, '');
+        await sb.storageCopy('tmz-photo-originals', source, 'tmz-photo-public', dest);
         patch.public_path = dest;
       }
+      patch.published_by = 'staff';
       patch.published_at = new Date().toISOString();
     } else {
-      // Taking it back down removes the servable copy; the original is kept.
       const [row] = await sb.from('tmz_photo', {})
         .select('public_path', { filter: { id: `eq.${id}` } });
       if (row?.public_path) {
-        await sb.storageRemove('tmz-photo-public', row.public_path).catch(() => {});
+        await sb.storageRemove('tmz-photo-public', row.public_path);
         patch.public_path = null;
       }
+      patch.published_by = null;
       patch.published_at = null;
     }
 
     await sb.from('tmz_photo').update(patch, { id: `eq.${id}` });
-    toast(status === 'approved' ? 'Photo approved and published.' : 'Photo rejected.');
+    toast(status === 'approved' ? 'Published.' : 'Taken down.');
     photos();
   } catch (e) { alert(e.message); }
 }

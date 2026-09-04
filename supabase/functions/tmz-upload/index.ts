@@ -2,10 +2,21 @@
  *
  * The browser never touches storage or the database directly for this: it posts
  * the file here, and this function does the things a client cannot be trusted
- * with — screening the image with Gemini, rate limiting, duplicate detection —
- * before anything lands in the archive. Every photograph enters as 'pending';
- * nothing this function does can publish one.
+ * with — sanitising the file, screening the image, rate limiting, duplicate
+ * detection — before anything lands in the archive.
+ *
+ * This path used to be the weak one. It checked the MIME TYPE THE SENDER
+ * DECLARED and then stored the sender's bytes verbatim, so a POST claiming
+ * image/jpeg could put anything at all in the bucket, and a reviewer clicking
+ * Approve would copy it to the public bucket untouched. It runs the same
+ * _shared/imagesafe.ts and _shared/screen.ts as the WhatsApp agent now:
+ * identified by its own magic bytes, re-encoded from decoded pixels, judged by
+ * two independent passes. Closing one door while leaving the other open is not
+ * a security posture.
  */
+
+import { sanitize, UnsafeFile } from '../_shared/imagesafe.ts';
+import { screen as screenImage, type Verdict } from '../_shared/screen.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -14,7 +25,13 @@ const IP_SALT = Deno.env.get('TMZ_IP_SALT') ?? 'tmz-default-salt';
 
 const MAX_BYTES = 12 * 1024 * 1024;
 const UPLOADS_PER_HOUR = 20;
-const ALLOWED = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
+const GEMINI_MODEL = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3.6-flash';
+
+/* The same dials as the WhatsApp agent, read from the same secrets, because a
+   contributor should not get a different answer for using a different door. */
+const AUTO_PUBLISH = (Deno.env.get('AUTO_PUBLISH') ?? 'on') !== 'off';
+const MIN_CONFIDENCE = Number(Deno.env.get('MIN_CONFIDENCE') ?? '0.8');
+const REQUIRE_PEOPLE = (Deno.env.get('REQUIRE_PEOPLE') ?? 'on') !== 'off';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -50,119 +67,9 @@ async function pg(path: string, init: RequestInit & { prefer?: string } = {}) {
 const rpc = (fn: string, args: unknown) =>
   pg(`/rpc/${fn}`, { method: 'POST', body: JSON.stringify(args) });
 
-// ---- Gemini screening ------------------------------------------------------
-
-/* Two jobs in one call: decide whether the picture is publishable at all, and
-   pull whatever metadata it can so a human has less to fill in. Returning
-   structured JSON keeps the verdict machine-readable — free text would need
-   parsing and would drift. */
-const SCREEN_PROMPT = `You are screening a photograph submitted to the Torah MiTzion 30th
-anniversary archive. Torah MiTzion runs religious-Zionist kollels (Torah learning
-centres) in Jewish communities around the world. Photographs show community
-events, Torah study, shlichim (young Israeli emissaries), families, holidays,
-and everyday community life across 1996-2026.
-
-Return ONLY a JSON object, no markdown fence, with exactly these keys:
-{
-  "publishable": boolean,
-  "reasons": string[],
-  "scores": {
-    "sexual": number, "violence": number, "advertising": number,
-    "unrelated": number, "low_quality": number
-  },
-  "guess": {
-    "decade": string|null,
-    "people_count": number|null,
-    "setting": string|null,
-    "event_type": string|null,
-    "description": string
-  }
-}
-
-Each score is 0.0-1.0 confidence that the problem is present.
-
-Set "publishable" FALSE only for: nudity or sexual content, graphic violence,
-an advertisement or promotional graphic, a screenshot, or a meme.
-
-Set it TRUE for everything else, including all of these, which are common in a
-thirty-year archive and must NOT be refused:
-- scans of old prints, photocopies, negatives and slides
-- blurred, grainy, faded, over-exposed, damaged or badly framed pictures
-- black-and-white and heavily colour-shifted film photographs
-- pictures of a page, a poster, a certificate or a handwritten letter
-- group portraits, empty rooms, buildings, food, travel and street scenes
-- anything whose connection to Torah MiTzion you cannot tell
-
-You are filtering only what must never reach a human reviewer. You are NOT
-judging quality, medium, age, or whether the picture belongs in the archive —
-a person decides that afterwards. When uncertain, set publishable true.
-"event_type" should be one of: simchat_torah, shabbaton, morning_seder,
-yom_haatzmaut, chanukah, purim, opening_night, melave_malka, shavuot,
-farewell, chavruta, youth — or null if unclear.
-"description" is one plain sentence in English.`;
-
-async function screen(base64: string, mime: string) {
-  if (!GEMINI_KEY) {
-    return {
-      ok: true,
-      verdict: {
-        publishable: true,
-        reasons: ['screening skipped: no GEMINI_API_KEY configured'],
-        scores: {},
-        guess: { description: '' }
-      },
-      model: 'none'
-    };
-  }
-
-  // gemini-2.5-flash was retired for new keys mid-2026 and answers 404; the
-  // API's own error names this as the replacement. Pinned rather than using
-  // -latest, which was returning 503.
-  const model = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3.6-flash';
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_KEY },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: SCREEN_PROMPT },
-            { inline_data: { mime_type: mime, data: base64 } }
-          ]
-        }],
-        generationConfig: { temperature: 0, responseMimeType: 'application/json' }
-      })
-    }
-  );
-
-  if (!res.ok) {
-    // A screening outage must not silently admit everything, nor lose the
-    // submission: hold it for a human instead.
-    return {
-      ok: false,
-      verdict: {
-        publishable: true,
-        reasons: [`screening unavailable (${res.status})`],
-        scores: {},
-        guess: { description: '' }
-      },
-      model
-    };
-  }
-
-  const data = await res.json();
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}';
-  try {
-    return { ok: true, verdict: JSON.parse(text), model };
-  } catch {
-    return {
-      ok: false,
-      verdict: { publishable: true, reasons: ['screening returned unparseable output'], scores: {}, guess: { description: '' } },
-      model
-    };
-  }
-}
+/* The single-pass screener that used to live here is gone: both intake
+   routes share _shared/screen.ts, so there is one policy and one place to
+   change it. */
 
 // ---- handler ---------------------------------------------------------------
 
@@ -179,7 +86,6 @@ Deno.serve(async req => {
     } = body ?? {};
 
     if (!file || typeof file !== 'string') return json({ error: 'No file.' }, 400);
-    if (!ALLOWED.includes(mime)) return json({ error: 'Unsupported image type.' }, 415);
     if (!consented) return json({ error: 'Consent is required to publish.' }, 400);
 
     const bytes = Uint8Array.from(atob(file), c => c.charCodeAt(0));
@@ -195,21 +101,57 @@ Deno.serve(async req => {
       return json({ error: `That is more than ${UPLOADS_PER_HOUR} uploads in an hour. Try again later.` }, 429);
     }
 
-    // Already have it? Say so rather than collecting the same picture twice.
-    if (phash) {
-      const dupes = await rpc('tmz_find_duplicate', { p_hash: phash, p_max_distance: 8 });
-      if (Array.isArray(dupes) && dupes.length) {
+    /* Identified by its own contents, dimension-checked before decoding, then
+       decoded and re-encoded by us. The declared `mime` is now only a hint for
+       the error message. */
+    let clean;
+    try {
+      clean = await sanitize(bytes);
+    } catch (e) {
+      if (e instanceof UnsafeFile) {
+        console.log('refused at the door:', e.message);
         return json({
-          duplicate: true,
-          status: dupes[0].status,
-          message: 'We already hold this photograph. Thank you all the same.'
-        });
+          error: 'That file could not be read as a photograph. JPEG, PNG, WebP and GIF are accepted.'
+        }, 415);
       }
+      throw e;
     }
 
-    const screened = await screen(file, mime);
-    const v = screened.verdict ?? {};
-    const publishable = v.publishable !== false;
+    /* The hash the browser computed is a courtesy; this one is of the decoded
+       pixels and is the one stored, so a re-compressed copy still collides. */
+    const dupes = await rpc('tmz_find_duplicate', { p_hash: clean.phash, p_max_distance: 6 });
+    if (Array.isArray(dupes) && dupes.length) {
+      return json({
+        duplicate: true,
+        status: dupes[0].status,
+        message: 'We already hold this photograph. Thank you all the same.'
+      });
+    }
+
+    /* Two independent passes, neither of which sees a word the contributor
+       typed. What they wrote places a photograph; it never clears one. */
+    let verdict: Verdict;
+    if (!GEMINI_KEY) {
+      verdict = { decision: 'hold', reasons: ['no screening key configured'],
+                  confidence: 0, facts: {}, scores: {}, passes: [] };
+    } else {
+      try {
+        verdict = await screenImage(toBase64(clean.archiveBytes), 'image/jpeg', {
+          model: GEMINI_MODEL, key: GEMINI_KEY,
+          minConfidence: MIN_CONFIDENCE, requirePeople: REQUIRE_PEOPLE
+        });
+      } catch (e) {
+        /* Fail closed, exactly as the WhatsApp path does. */
+        console.error('screening unavailable', e);
+        verdict = { decision: 'hold', reasons: [`screening unavailable: ${String(e).slice(0, 200)}`],
+                    confidence: 0, facts: {}, scores: {}, passes: [] };
+      }
+    }
+    if (!AUTO_PUBLISH && verdict.decision === 'publish') {
+      verdict = { ...verdict, decision: 'hold',
+                  reasons: ['auto-publish is switched off', ...verdict.reasons] };
+    }
+    const publishable = verdict.decision !== 'reject';
 
     // Resolve the community by slug; an unknown one is not fatal, a human can
     // place it later.
@@ -232,23 +174,13 @@ Deno.serve(async req => {
       }])
     });
 
-    const ext = mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp'
-              : mime === 'image/heic' ? 'heic' : 'jpg';
-    const key = `${new Date().getFullYear()}/${submission.id}.${ext}`;
+    /* Always .jpg: what is stored is what we encoded, not what arrived. */
+    const key = `${new Date().getFullYear()}/${submission.id}.jpg`;
+    const derivedKey = `derived/${key}`;
+    await putObject(key, clean.archiveBytes);
+    await putObject(derivedKey, clean.publicBytes);
 
-    const up = await fetch(`${SUPABASE_URL}/storage/v1/object/tmz-photo-originals/${key}`, {
-      method: 'POST',
-      headers: {
-        apikey: SERVICE_KEY,
-        Authorization: `Bearer ${SERVICE_KEY}`,
-        'Content-Type': mime,
-        'x-upsert': 'true'
-      },
-      body: bytes
-    });
-    if (!up.ok) throw new Error(`storage → ${up.status} ${await up.text()}`);
-
-    const guess = v.guess ?? {};
+    const guess = verdict.facts ?? {};
     const [photo] = await pg('/tmz_photo', {
       method: 'POST',
       prefer: 'return=representation',
@@ -258,40 +190,131 @@ Deno.serve(async req => {
         event_type_id: guess.event_type || null,
         venue: guess.setting || null,
         storage_path: key,
-        bytes: bytes.length,
-        phash: phash || null,
-        // Rejected by the model never reaches a human queue; everything else
-        // waits for review. Nothing here can approve a photograph.
+        derived_path: derivedKey,
+        width: clean.width, height: clean.height,
+        bytes: clean.archiveBytes.length,
+        phash: clean.phash,
         status: publishable ? 'pending' : 'rejected',
+        agent_decision: verdict.decision,
         source: 'web',
         submission_id: submission.id,
         submitter_ref: [contributor_name, people, event_note].filter(Boolean).join(' · ') || null
       }])
     });
 
+    /* Every object in a PostgREST bulk insert must carry the SAME KEYS — it
+       builds one INSERT from the first row's shape and rejects the rest with
+       "All object keys must match". The per-pass rows had no `decision` and
+       the final row did, so the whole insert failed the moment real screening
+       produced passes to record. It stayed hidden while the model was over
+       quota, because then there are no passes and the array has one row. */
     await pg('/tmz_moderation', {
       method: 'POST',
-      body: JSON.stringify([{
-        photo_id: photo.id,
-        model: screened.model,
-        verdict: publishable ? 'pending' : 'rejected',
-        scores: v.scores ?? {},
-        reasons: v.reasons ?? []
-      }])
+      body: JSON.stringify([
+        ...verdict.passes.map(p => ({
+          photo_id: photo.id, model: GEMINI_MODEL, pass: p.pass,
+          verdict: publishable ? 'pending' : 'rejected',
+          decision: null,
+          scores: verdict.scores ?? {}, reasons: verdict.reasons ?? []
+        })),
+        {
+          photo_id: photo.id, model: GEMINI_MODEL, pass: 'final',
+          verdict: publishable ? 'pending' : 'rejected',
+          decision: verdict.decision,
+          scores: verdict.scores ?? {}, reasons: verdict.reasons ?? []
+        }
+      ])
     });
+
+    /* The contributor named the community and the year on the form, so a
+       cleared photograph usually has everywhere it needs to go and appears
+       immediately. */
+    const live = await publishIfReady(photo.id);
 
     return json({
       ok: true,
       accepted: publishable,
+      published: live,
       photo_id: photo.id,
-      description: guess.description ?? null,
-      reasons: publishable ? [] : (v.reasons ?? []),
-      message: publishable
-        ? 'Thank you. A member of the team will review it shortly.'
-        : 'That image did not pass our automatic check, so it was not added.'
+      description: (verdict.facts ?? {}).description ?? null,
+      reasons: publishable ? [] : (verdict.reasons ?? []),
+      message: !publishable
+        ? 'Sorry — that image did not pass our automatic check, so it was not added.'
+        : live
+          ? 'Thank you. It is on the site now.'
+          : 'Thank you. It is in the archive and will appear once we know where it belongs.'
     });
   } catch (e) {
     console.error(e);
     return json({ error: 'Something went wrong handling that upload.' }, 500);
   }
 });
+
+/* ---- storage ------------------------------------------------------------- */
+
+async function putObject(key: string, bytes: Uint8Array) {
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/tmz-photo-originals/${key}`, {
+    method: 'POST',
+    headers: {
+      apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`,
+      'Content-Type': 'image/jpeg', 'x-upsert': 'true'
+    },
+    body: bytes
+  });
+  if (!res.ok) throw new Error(`storage ${key} → ${res.status} ${await res.text()}`);
+}
+
+/* Spreading a multi-megabyte Uint8Array into String.fromCharCode overflows the
+   call stack, which is exactly the size a phone camera produces. Chunk it. */
+function toBase64(bytes: Uint8Array) {
+  let out = '';
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    out += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(out);
+}
+
+/* The same single door to the public bucket the WhatsApp agent uses, and the
+   same conditions: screening said publish, the photograph has somewhere to
+   appear, and it is not already up. */
+async function publishIfReady(photoId: string) {
+  const rows = await pg(
+    `/tmz_photo?select=id,community_id,year,derived_path,storage_path,public_path,agent_decision` +
+    `&id=eq.${photoId}`);
+  const p = rows?.[0];
+  if (!p) return false;
+  if (p.public_path) return true;
+  if (p.agent_decision !== 'publish') return false;
+  if (!p.community_id || !p.year) return false;
+  if (!AUTO_PUBLISH) return false;
+
+  const source = p.derived_path ?? p.storage_path;
+  const dest = source.replace(/^derived\//, '');
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/copy`, {
+    method: 'POST',
+    headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`,
+               'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      bucketId: 'tmz-photo-originals', sourceKey: source,
+      destinationBucket: 'tmz-photo-public', destinationKey: dest
+    })
+  });
+  if (!res.ok) { console.error('publish failed', res.status, await res.text()); return false; }
+
+  await pg(`/tmz_photo?id=eq.${photoId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      status: 'approved', public_path: dest,
+      published_by: 'agent', published_at: new Date().toISOString()
+    })
+  });
+  await pg('/tmz_moderation', {
+    method: 'POST',
+    body: JSON.stringify([{
+      photo_id: photoId, model: GEMINI_MODEL, pass: 'final', decision: 'published',
+      verdict: 'approved', reasons: ['published automatically']
+    }])
+  });
+  return true;
+}
