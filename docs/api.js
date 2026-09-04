@@ -4,10 +4,10 @@
  * the requested language, so the browser never joins translation tables or
  * learns that the private originals bucket exists.
  *
- * ?demo=1 keeps the invented data from data.js instead — the generated
- * rosters and photograph counts that were built before there was a database.
- * It exists so the design can still be shown to someone before the archive
- * has anything in it, and it says so on screen. It is never the default. */
+ * ?demo=1 keeps the real communities and invents only their photograph counts,
+ * so the design can be shown full while the archive is still empty. It says so
+ * on screen and is never the default. Nothing about a community, a person or a
+ * year is invented any more. */
 
 const TMZ_SUPABASE_URL = 'https://xuoxkmwtdascazutoaxs.supabase.co';
 const TMZ_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1b3hrbXd0ZGFzY2F6dXRvYXhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk3MjI5MDcsImV4cCI6MjA3NTI5ODkwN30.Cy1W0lXNuP-lXbRyGOPjz2fL6ano-Nzxf7HBoRv9EJM';
@@ -39,31 +39,49 @@ const photoUrl = path =>
    rather than a translation object (tf() passes strings straight through), and
    a years map the band reads instead of the old generator. */
 async function loadMap(lang) {
-  if (DEMO) {
-    return {
-      demo: true,
-      communities: COMMUNITIES.map(c => ({ ...c, total: null, years: null })),
-      regions: REGIONS.map(id => ({ id, name: null }))
-    };
-  }
   const p = await rpc('tmz_map_payload', { want: lang });
+  const communities = (p.communities || []).map(c => ({
+    id: c.id, name: c.name, lon: c.lon, lat: c.lat, rg: c.rg,
+    f: c.f, c: c.c || 0,
+    total: c.total || 0,
+    years: c.years || {}
+  }));
+  /* Demo mode used to serve a parallel list of 49 invented communities, which
+     outlived its purpose the day the real 23 landed and became a page telling
+     visitors that Torah MiTzion has kollels it does not have. What it was
+     actually for — showing what a full archive looks like while this one is
+     empty — needs only invented COUNTS. So it decorates the real communities
+     instead of replacing them: every name, year and place stays true, and only
+     the photograph numbers are made up. */
   return {
-    demo: false,
-    communities: (p.communities || []).map(c => ({
-      id: c.id, name: c.name, lon: c.lon, lat: c.lat, rg: c.rg,
-      f: c.f, c: c.c || 0,
-      total: c.total || 0,
-      years: c.years || {}
-    })),
+    demo: DEMO,
+    communities: DEMO ? communities.map(withInventedCounts) : communities,
     regions: p.regions || []
   };
+}
+
+/* Stable per community, so the map does not reshuffle on every render, and
+   thinner in the early years because that is the shape a real archive has. */
+function withInventedCounts(c) {
+  let seed = 0;
+  for (const ch of c.id) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
+  const next = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+
+  const last = c.c || 2026;
+  const years = {};
+  let total = 0;
+  for (let y = c.f; y <= last; y++) {
+    const r = next(), maturity = (y - 1996) / 30;
+    const n = r < 0.30 - maturity * 0.22 ? 0 : Math.round(6 + r * 34 + maturity * 16);
+    if (n) { years[String(y)] = n; total += n; }
+  }
+  return { ...c, years, total };
 }
 
 /* The per-year bars for one community. Live data gives us only the years that
    have something, so the empty ones have to be filled in — those gaps are the
    point of the whole campaign and must be drawn, not omitted. */
 function historyFrom(community) {
-  if (DEMO) return historyOf(community);
   const last = community.c || 2026;
   const rows = [];
   let peak = 1, total = 0, holes = 0;

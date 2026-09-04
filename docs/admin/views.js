@@ -481,28 +481,90 @@ async function deletePerson(p) {
 /* The whole reason translations live in their own tables rather than a jsonb
    blob: "what is still missing in Russian" has to be one query, and it has to
    be fixable in place without hunting through every community. */
+/* Four kinds of record are translatable, and they do not all need all six
+   languages — so this page distinguishes MISSING from NOT NEEDED. Before, it
+   counted a person with no French row as missing, which is 231 people times
+   three Latin locales of phantom work: a shaliach called Amichai Frei is
+   called Amichai Frei in French, and writing that into three more rows creates
+   three copies that go stale the day the English spelling is corrected. The
+   fallback chain (requested -> en -> any) already returns the right string.
+
+   The rule, per kind:
+     communities   — all six. Names and countries are headline elements, and
+                     Moscow really is Moscou, Moskau, Moscú.
+     event types   — all six. "Community shabbaton" is a phrase, not a name.
+     people        — he and ru only. A different SCRIPT is a different name; a
+                     different Latin-script locale is the same one.
+     institutions  — he and ru only, for the same reason.
+   Anything outside a kind's set is shown as "same as English", and can still
+   be overridden by hand when a name genuinely does differ. */
+
+const TR_KINDS = {
+  community: {
+    label: 'Community', table: 'tmz_community_tr', fk: 'community_id', field: 'name',
+    langs: LANGS
+  },
+  event: {
+    label: 'Occasion', table: 'tmz_event_type_tr', fk: 'event_type_id', field: 'name',
+    langs: LANGS
+  },
+  person: {
+    label: 'Person', table: 'tmz_person_tr', fk: 'person_id', field: 'display_name',
+    langs: ['en', 'he', 'ru']
+  },
+  institution: {
+    label: 'Yeshiva', table: 'tmz_institution_tr', fk: 'institution_id', field: 'name',
+    langs: ['en', 'he', 'ru']
+  }
+};
+
+/* Six cells like coverage(), plus a third state for a locale this kind does
+   not need — so a grey cell reads as "settled", never as "unfinished". */
+function trCoverage(tr, needed) {
+  const have = new Set((tr || []).map(t => t.lang));
+  return `<div class="cov">${LANGS.map(l => {
+    const on = have.has(l);
+    const na = !needed.includes(l);
+    const title = on ? LANG_NAMES[l]
+      : na ? `${LANG_NAMES[l]} — same as English` : `${LANG_NAMES[l]} — missing`;
+    return `<span class="cell ${on ? 'on' : na ? 'na' : ''}" title="${esc(title)}"></span>`;
+  }).join('')}</div>`;
+}
+
 export async function translations() {
-  const [comms, ppl] = await Promise.all([
+  const [comms, ppl, events, insts] = await Promise.all([
     sb.from('tmz_community', {}).select('id,slug,tmz_community_tr(lang,name)', { order: 'slug.asc' }),
-    sb.from('tmz_person', {}).select('id,slug,tmz_person_tr(lang,display_name)', { order: 'slug.asc.nullslast' })
+    sb.from('tmz_person', {}).select('id,slug,tmz_person_tr(lang,display_name)',
+      { order: 'slug.asc.nullslast', limit: 1000 }),
+    sb.from('tmz_event_type', {}).select('id,tmz_event_type_tr(lang,name)', { order: 'sort.asc' }),
+    sb.from('tmz_institution', {}).select('id,slug,tmz_institution_tr(lang,name)', { order: 'slug.asc' })
   ]);
 
   const entities = [
     ...comms.map(c => ({ kind: 'community', id: c.id, slug: c.slug,
                          name: pickName(c.tmz_community_tr) || c.slug, tr: c.tmz_community_tr || [] })),
+    ...events.map(e => ({ kind: 'event', id: e.id, slug: e.id,
+                          name: pickName(e.tmz_event_type_tr) || e.id, tr: e.tmz_event_type_tr || [] })),
     ...ppl.map(p => ({ kind: 'person', id: p.id, slug: p.slug || '—',
-                       name: pickName(p.tmz_person_tr) || p.slug || 'unnamed', tr: p.tmz_person_tr || [] }))
+                       name: pickName(p.tmz_person_tr) || p.slug || 'unnamed', tr: p.tmz_person_tr || [] })),
+    ...insts.map(i => ({ kind: 'institution', id: i.id, slug: i.slug,
+                         name: pickName(i.tmz_institution_tr) || i.slug, tr: i.tmz_institution_tr || [] }))
   ];
 
+  const needs = e => TR_KINDS[e.kind].langs;
+  const lacks = (e, l) => needs(e).includes(l) && !e.tr.some(t => t.lang === l);
+
   const perLang = {};
-  for (const l of LANGS) perLang[l] = entities.filter(e => !e.tr.some(t => t.lang === l)).length;
+  for (const l of LANGS) perLang[l] = entities.filter(e => lacks(e, l)).length;
+
   const active = (new URLSearchParams(location.hash.split('?')[1] || '')).get('lang') || 'he';
-  const missing = entities.filter(e => !e.tr.some(t => t.lang === active));
+  const missing = entities.filter(e => lacks(e, active));
+  const notNeeded = entities.filter(e => !needs(e).includes(active)).length;
 
   $('#page').innerHTML = `
     <div class="page-head">
       <div><h1>Translations</h1>
-        <p>${entities.length} translatable records across communities and people.</p></div>
+        <p>${entities.length} translatable records — communities, occasions, people and yeshivot.</p></div>
     </div>
     <div class="stat-grid">
       ${LANGS.map(l => `
@@ -513,17 +575,24 @@ export async function translations() {
         </button>`).join('')}
     </div>
 
-    <h2 style="font-family:var(--serif); font-size:20px; margin:0 0 12px">
+    <h2 style="font-family:var(--serif); font-size:20px; margin:0 0 6px">
       Missing in ${esc(LANG_NAMES[active])} — ${missing.length}</h2>
+    <p class="dim" style="margin:0 0 14px; font-size:12.5px; max-width:70ch">
+      ${notNeeded > 0
+        ? `${notNeeded} more records are not counted: a name written in Latin letters is
+           the same name in ${esc(LANG_NAMES[active])}, and the fallback chain already returns it.
+           Add one by hand from the People or Communities page if it genuinely differs.`
+        : `Every kind of record needs ${esc(LANG_NAMES[active])}.`}</p>
+
     ${missing.length === 0
-      ? `<div class="empty">Nothing missing. Every record has a ${esc(LANG_NAMES[active])} translation.</div>`
+      ? `<div class="empty">Nothing missing. Every record that needs ${esc(LANG_NAMES[active])} has it.</div>`
       : `<div class="tbl-wrap"><table class="tbl">
       <thead><tr><th>Record</th><th>Type</th><th>Fallback shown</th><th>Coverage</th><th></th></tr></thead>
       <tbody>${missing.map(e => `<tr data-id="${e.id}" data-kind="${e.kind}">
         <td>${esc(e.name)}</td>
-        <td class="dim">${esc(e.kind)}</td>
+        <td class="dim">${esc(TR_KINDS[e.kind].label)}</td>
         <td class="dim">${esc(pickName(e.tr) || '—')}</td>
-        <td>${coverage(e.tr)}</td>
+        <td>${trCoverage(e.tr, needs(e))}</td>
         <td class="actions"><button class="fix">Add ${esc(active.toUpperCase())}</button></td>
       </tr>`).join('')}</tbody></table></div>`}`;
 
@@ -537,20 +606,18 @@ export async function translations() {
 }
 
 function quickTranslate(kind, id, lang, entities) {
-  const e = entities.find(x => x.id === id);
-  const table = kind === 'community' ? 'tmz_community_tr' : 'tmz_person_tr';
-  const fkey = kind === 'community' ? 'community_id' : 'person_id';
-  const field = kind === 'community' ? 'name' : 'display_name';
+  const e = entities.find(x => x.id === id && x.kind === kind);
+  const { table, fk, field, label } = TR_KINDS[kind];
 
   const el = openDrawer(`${LANG_NAMES[lang]} — ${e.name}`, `
     <div id="drawerErr"></div>
     <p class="dim" style="margin-top:0">
-      Currently falling back to <b>${esc(pickName(e.tr) || '—')}</b>.
+      ${esc(label)}. Currently falling back to <b>${esc(pickName(e.tr) || '—')}</b>.
       Existing translations:</p>
     <div class="tbl-wrap" style="margin-bottom:16px"><table class="tbl">
       <tbody>${(e.tr.length ? e.tr : [{ lang: '—', [field]: 'none' }]).map(t =>
         `<tr><td class="dim" style="width:90px">${esc(LANG_NAMES[t.lang] || t.lang)}</td>
-             <td>${esc(t[field] || t.name || t.display_name || '')}</td></tr>`).join('')}</tbody>
+             <td dir="${t.lang === 'he' ? 'rtl' : 'ltr'}">${esc(t[field] || t.name || t.display_name || '')}</td></tr>`).join('')}</tbody>
     </table></div>
     <div class="field"><label>${esc(LANG_NAMES[lang])}</label>
       <input id="q_val" dir="${lang === 'he' ? 'rtl' : 'ltr'}" placeholder="${esc(pickName(e.tr) || '')}"></div>
@@ -560,8 +627,8 @@ function quickTranslate(kind, id, lang, entities) {
       const v = drawer.querySelector('#q_val').value.trim();
       if (!v) return;
       try {
-        await sb.from(table).upsert({ [fkey]: id, lang, [field]: v },
-                                    { onConflict: `${fkey},lang` });
+        await sb.from(table).upsert({ [fk]: id, lang, [field]: v },
+                                    { onConflict: `${fk},lang` });
         toast('Translation saved.');
         closeDrawer();
         translations();

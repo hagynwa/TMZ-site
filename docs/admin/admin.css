@@ -244,3 +244,7 @@ table.tbl td.actions .del:hover { color: var(--danger); }
 .drawer-h3 { font-family: var(--serif); font-size:18px; margin:24px 0 10px; color:var(--ivory); }
 .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
 .tbl.mini td { font-size:12px; padding:5px 8px; }
+
+/* A locale a record does not need. Distinct from both filled and missing:
+   grey says settled, not unfinished. */
+.cov .cell.na { background: var(--line2); opacity: .45; }
