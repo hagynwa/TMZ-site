@@ -101,7 +101,22 @@
     { "slug": "kansas", "rg": "na", "lat": 39.10, "lon": -94.58, "f": 2024,
       "name": { "en": "Kansas City", "he": "קנזס סיטי", "ru": "Канзас-Сити" },
       "country": { "en": "United States", "he": "ארצות הברית" },
-      "note": "Community Beit Midrash of KC, opened September 2024." }
+      "note": "Community Beit Midrash of KC, opened September 2024." },
+
+    { "slug": "cleveland", "rg": "na", "lat": 41.50, "lon": -81.69, "f": 1994, "c": 1995,
+      "name": { "en": "Cleveland", "he": "קליבלנד", "ru": "Кливленд" },
+      "country": { "en": "United States", "he": "ארצות הברית" },
+      "note": "THE FIRST TORAH MITZION KOLLEL IN THE UNITED STATES and the first Religious Zionist kollel in North America, established by Rabbi Binyamin Tabory z\"l during a sabbatical in 1994. Not on the current site; found through the Cleveland Jewish News and Yeshivat Har Etzion. THE CLOSING YEAR IS A PLACEHOLDER — a sabbatical is usually one year, but no source states when Cleveland ended. Needs confirming." },
+
+    { "slug": "stlouis", "rg": "na", "lat": 38.63, "lon": -90.20, "f": 2003, "c": 2018,
+      "name": { "en": "St. Louis", "he": "סנט לואיס", "ru": "Сент-Луис" },
+      "country": { "en": "United States", "he": "ארצות הברית" },
+      "note": "Hosted seven families. Its page is still online but is not linked from the site's community list, and the last avreichim term ends 2018 — taken as the closing year." },
+
+    { "slug": "munich", "rg": "eu", "lat": 48.14, "lon": 11.58, "f": 2008,
+      "name": { "en": "Munich", "he": "מינכן", "ru": "Мюнхен" },
+      "country": { "en": "Germany", "he": "גרמניה" },
+      "note": "Founded by Mr. Jechiel Bieber with the L.A. Pincus Fund. Works with the Bavarian Association of Jewish Communities, Morasha and the Janusz Korczak Academy. Page online but not linked from the community list." }
   ],
 
   "institutions": [
@@ -122,7 +137,9 @@
     { "slug": "kiryat-shmona", "en": "Kiryat Shmona",  "he": "קרית שמונה" },
     { "slug": "hispin",        "en": "Hispin",         "he": "חיספין" },
     { "slug": "chevron",       "en": "Chevron",        "he": "חברון" },
-    { "slug": "nof-hagalil",   "en": "Nof HaGalil",    "he": "נוף הגליל" }
+    { "slug": "nof-hagalil",   "en": "Nof HaGalil",    "he": "נוף הגליל" },
+    { "slug": "efrat",         "en": "Efrat",          "he": "אפרת" },
+    { "slug": "midreshet-zion","en": "Midreshet Zion", "he": "מדרשת ציון" }
   ],
 
   "tenures": [
@@ -265,6 +282,23 @@
     { "c": "ottawa", "role": "rosh_kollel", "from": 2023, "to": null, "en": "The Guberman family", "note": "The site names the family, not individuals." },
     { "c": "ottawa", "role": "shaliach", "from": 2026, "to": null, "en": "Nisan Assouline", "spouse": "Renana Assouline" },
 
-    { "c": "kansas", "role": "rosh_kollel", "from": 2024, "to": null, "en": "Rabbi Benyamin Feldman", "spouse": "Tehilla Feldman", "inst": "maale-adumim" }
+    { "c": "kansas", "role": "rosh_kollel", "from": 2024, "to": null, "en": "Rabbi Benyamin Feldman", "spouse": "Tehilla Feldman", "inst": "maale-adumim" },
+
+    { "c": "cleveland", "role": "rosh_kollel", "from": 1994, "to": 1995, "en": "Rabbi Binyamin Tabory z\"l", "he": "הרב בנימין טברי זצ\"ל", "inst": "har-etzion", "note": "Founding Rosh Kollel of the first Torah MiTzion kollel in the United States. The same person later led Manhattan, 2004-2005." },
+
+    { "c": "stlouis", "role": "rosh_kollel", "from": 2003, "to": 2006, "en": "Rav Boaz Genut", "spouse": "Cheftziba Genut", "inst": "or-etzion" },
+    { "c": "stlouis", "role": "rosh_kollel", "from": 2009, "to": 2011, "en": "Rav Chaim Possick", "spouse": "Merav Possick", "inst": "maale-adumim" },
+    { "c": "stlouis", "role": "rosh_kollel", "from": 2011, "to": 2013, "en": "Rav Boaz Shachak", "spouse": "Yael Shachak", "inst": "efrat" },
+    { "c": "stlouis", "role": "staff", "from": 2004, "to": 2008, "en": "Rav Uria Teperberg", "spouse": "Vradit Teperberg", "note": "Avreich." },
+    { "c": "stlouis", "role": "staff", "from": 2009, "to": 2012, "en": "Asaf Gastfraind", "spouse": "Gilad Gastfraind", "note": "Avreichim; the site lists 'Asaf and Gilad Gastfraind', which may be two brothers rather than a couple. Worth checking." },
+    { "c": "stlouis", "role": "staff", "from": 2014, "to": 2016, "en": "Eitan Solomon", "spouse": "Adi Solomon", "note": "Avreich." },
+    { "c": "stlouis", "role": "staff", "from": 2016, "to": 2018, "en": "Tal Midler", "spouse": "Ginat Midler", "note": "Avreich." },
+
+    { "c": "munich", "role": "rosh_kollel", "from": 2008, "to": 2013, "en": "Rabbi Yechiel Brukner", "spouse": "Sarah Brukner", "inst": "har-etzion" },
+    { "c": "munich", "role": "rosh_kollel", "from": 2013, "to": 2016, "en": "Eliezer Noy", "spouse": "Rotem Noy" },
+    { "c": "munich", "role": "rosh_kollel", "from": 2016, "to": 2017, "en": "Avraham Grunwald", "spouse": "Tamar Grunwald" },
+    { "c": "munich", "role": "rosh_kollel", "from": 2017, "to": null, "en": "Rabbi Yechiel Brukner", "spouse": "Sarah Brukner", "inst": "har-etzion", "note": "Returned to Munich for a second term." },
+    { "c": "munich", "role": "shlicha", "from": 2017, "to": null, "en": "Elleana Silberman", "inst": "midreshet-zion" },
+    { "c": "munich", "role": "shlicha", "from": 2017, "to": null, "en": "Hodaya Ben Ari", "inst": "midreshet-zion" }
   ]
 }
