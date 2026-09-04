@@ -73,8 +73,9 @@ through `https://api.supabase.com/v1/projects/<ref>/database/query`.
 - [x] Grants hardening (migration 10) — see incident note below
 - [x] Reference seed applied (4 regions × 6 langs, 12 event types × 2 langs)
 - [x] 5 pgTAP test files, 34 assertions, all passing on the live linked DB
-- [x] `scripts/seed-communities.mjs` — 49 placeholder communities in `tmz_community` (`tmz_map_payload` returns them, verified)
-- [ ] API layer the front end reads instead of `data.js` (`tmz_map_payload`, `tmz_year_payload` exist and are tested; front end not yet wired to them)
+- [x] `scripts/import-real.mjs` + `scripts/real-data.json` — the **real** 23 communities, 231 people, 236 tenures, taken from torahmitzion.org's own community pages (this replaced the 49 invented ones; `--prune` removed them)
+- [x] API layer the front end reads instead of `data.js` — `docs/api.js` calls `tmz_map_payload` / `tmz_year_payload`; `data.js` survives only behind `?demo=1`
+- [x] `scripts/import-translations.mjs` + `translations.json` / `people-translations.json` — see *Translations* below
 
 **Incident, fixed same session:** this shared project carries a pre-existing
 `ALTER DEFAULT PRIVILEGES` rule (from whichever app was set up first) that
@@ -159,13 +160,50 @@ POST gets 401, a GET without the verify token gets 403. Both confirmed live.
 
 | Question | Blocks | Status |
 |----------|--------|--------|
-| Real community list — how many, which, founding years, open/closed? | Seed data | **Waiting on client** |
 | Does the Hebrew timeline run right-to-left (oldest on the right)? | Phase 3 UI | **Waiting on client** |
 | Is there an official reversed/mono Torah MiTzion logo? | Polish | **Waiting on client** |
 | Who moderates? One central team or per-community editors? | Phase 3 roles | **Waiting on client** |
 | WhatsApp number — new or existing? | Phase 5 | **Waiting on client** |
 
 ---
+
+## Translations
+
+Six locales, resolved per field by a fallback chain (requested → `en` → any).
+UI strings live in `docs/i18n.js` and are complete in all six. Entity names live
+in `*_tr` tables and are now:
+
+| Table | en | he | ru | fr | de | es |
+|-------|----|----|----|----|----|-----|
+| `tmz_region_tr` | 4 | 4 | 4 | 4 | 4 | 4 |
+| `tmz_community_tr` | 23 | 23 | 23 | 23 | 23 | 23 |
+| `tmz_event_type_tr` | 12 | 12 | 12 | 12 | 12 | 12 |
+| `tmz_institution_tr` | 25 | 25 | 25 | — | — | — |
+| `tmz_person_tr` | 231 | 231 | 9 | — | — | — |
+
+The em-dashes are deliberate, not a backlog. **A Latin-script proper noun is not
+translated between Latin-script locales** — a shaliach called Amichai Frei is
+called Amichai Frei in French, and writing his name into `fr`, `de` and `es`
+would create three copies that silently go stale the day the English spelling is
+corrected. The fallback chain already returns the right string. Community names
+and countries *are* filled in all six, because they are headline elements and a
+half-empty row there reads as broken rather than as deliberate. Russian is filled
+wherever the script genuinely changes.
+
+Hebrew person names are the least like a translation: for the Israeli shlichim
+the Hebrew is the **original** and the site's English is a transliteration, so
+these restore a spelling rather than invent one. Twelve names could not be
+recovered with confidence — mostly diaspora rabbis whose surname has no single
+conventional Hebrew form — and are listed under `uncertain` in
+`scripts/people-translations.json` for someone who knows the family to confirm.
+
+Merged while importing: **Rabbi Binyamin Tabory z"l** existed twice, because
+torahmitzion.org spells him both *Tabori* and *Tabory* on different pages. He is
+the founding Rosh Kollel of Cleveland, 1994. The importer moves the duplicate's
+tenures and deletes the empty row; the pair is recorded under `duplicates`.
+
+Still open: `tmz_photo_tr` is empty, which is correct — no photograph has a
+caption yet because no photograph has been approved yet.
 
 ## Environment notes
 
