@@ -296,6 +296,65 @@ note.
 
 ---
 
+## Audit against the brief — 2026-09-04
+
+A pass over every part of the original brief, checking what actually runs
+rather than what the checkboxes claimed. Nine things were wrong.
+
+**Security**
+
+1. **The upload page was the weak door.** It checked the MIME type the *sender
+   declared* and stored the sender's bytes verbatim, so a POST claiming
+   `image/jpeg` could put anything in the bucket — and a reviewer clicking
+   Approve would copy it to the *public* bucket untouched. Closing the WhatsApp
+   door while leaving that one open was not a security posture. Both routes now
+   run the same `_shared/imagesafe.ts` and `_shared/screen.ts`. Verified by
+   attacking it directly: an SVG carrying script and an HTML page, both declared
+   as images, are refused 415.
+2. **`tmz_agent_published` leaked phone numbers.** A view in Postgres runs with
+   its *owner's* rights unless it says otherwise, so RLS on `tmz_photo` was
+   bypassed by reading the view instead — and it carried `submitter_ref`, which
+   for a WhatsApp contribution is `wa:` plus the sender's number. Any signed-in
+   account could have read them. `security_invoker` now, and `submitter_ref` is
+   not in it at all.
+3. **`tmz_coverage` and `tmz_intake_stats` were `security definer`** with a
+   blanket grant to `authenticated`, so the grant was the only gate. Security
+   invoker now; the reader's own RLS applies.
+4. **The revokes did not do what they said.** Every function is granted to
+   `PUBLIC` on creation and `anon` inherits that, so `revoke ... from anon` left
+   `tmz_coverage` answering anonymous callers.
+
+**Correctness**
+
+5. **A latent bug that would have fired on both intake paths the first time real
+   screening ran.** PostgREST requires every object in a bulk insert to carry
+   the same keys; the per-pass moderation rows had no `decision` and the final
+   row did. `PGRST102, All object keys must match` — so a photograph would have
+   been stored with *no record of why it was published*. Invisible until now
+   only because the Gemini key is over quota: when screening cannot run there
+   are no passes and the array has one row. The test console's forced verdict
+   now writes two synthetic passes so it exercises the real shape.
+6. **Staff publishing copied the original bytes, not the derivative** — which is
+   the entire reason two copies are kept.
+7. **The year screen printed "0 shlichim"** above a Rosh Kollel and his wife,
+   both named on the same screen.
+8. **The contribute page printed the literal string `[WHATSAPP NUMBER]`** and
+   invited visitors to message it.
+9. **Deleting `data.js` took the world with it.** `LAND` — the coastlines — was
+   the one thing in that file that was never invented, and losing it blanked the
+   map on every screen. Caught by loading the live site; the syntax check was
+   perfectly happy. It lives in `docs/land.js` now.
+
+**Also completed in the same pass:** the photo detail the brief asked for
+(preview, caption in six languages, date, occasion, place, people tagging, the
+screening record, Take down); the named gap list — "Memphis 2003 has no pics" is
+the brief's own example and a grid of coloured squares does not say it; the
+contributor leaderboard, aggregated in the database so no email address reaches
+the browser; and the translations page learning the difference between *missing*
+and *not needed*, which was manufacturing 693 phantom tasks.
+
+**Still open and needing a person:** the WhatsApp number, and the Gemini quota.
+
 ## Open questions
 
 | Question | Blocks | Status |
