@@ -412,7 +412,10 @@ async function communityView(id, year) {
         <h1><span dir="ltr">${yr}&ndash;${String(yr + 1).slice(2)}</span></h1>
       </div>
       <div class="ystats">
-        <div class="stat"><span class="v">${num(cohort.length)}</span><span class="k">${esc(t('u.shlichim'))}</span></div>
+        <!-- Everyone the archive knows was here that year. Counting only the
+             cohort printed "0 shlichim" above a Rosh Kollel and his wife, both
+             of whom are shlichim, and both of whom were on the screen. -->
+        <div class="stat"><span class="v">${num((rosh ? 1 : 0) + household.length + cohort.length)}</span><span class="k">${esc(t('u.shlichim'))}</span></div>
         <div class="stat"><span class="v">${num(photos.length)}</span><span class="k">${esc(t('u.photographs'))}</span></div>
         <div class="stat"><span class="v">${num(peopleNamed)}</span><span class="k">${esc(t('u.peopleNamed'))}</span></div>
       </div>
