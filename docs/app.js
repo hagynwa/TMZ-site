@@ -59,9 +59,16 @@ function shell() {
   </header>`;
 }
 
+/* The disclaimer belongs to the demo data, not to the site. Leaving it up now
+   that the archive holds the real communities would tell every visitor that
+   the Rosh Kollel they are reading about is invented. */
+function provenance() {
+  return t(window.TMZApi && window.TMZApi.DEMO ? 'foot.mock' : 'foot.source');
+}
+
 function footer() {
   return `<footer class="foot">
-    <span>${esc(t('foot.mock'))}</span>
+    <span>${esc(provenance())}</span>
     <a href="canvas.html">${esc(t('foot.canvas'))} &rarr;</a>
   </footer>`;
 }
@@ -240,7 +247,7 @@ function drawSide(views) {
       <div class="lg"><span class="s clus"></span>${esc(t('legend.cluster'))}</div>
     </div>
     <div class="flyto">${esc(t('fly.to'))}</div>${rows}
-    <p class="side-note">${esc(t('foot.mock'))} <a href="canvas.html">${esc(t('foot.canvas'))} &rarr;</a></p>`;
+    <p class="side-note">${esc(provenance())} <a href="canvas.html">${esc(t('foot.canvas'))} &rarr;</a></p>`;
 
   $('#side').querySelectorAll('[data-view]').forEach(b => {
     b.onclick = () => { setView({ zoom: b.dataset.view, custom: null }); drawMap(); };
