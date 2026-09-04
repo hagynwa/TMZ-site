@@ -424,6 +424,13 @@ async function communityView(id, year) {
   </div>`;
 }
 
+/* The organisation's WhatsApp number, once there is one. Until then this stays
+   empty and the offer is not shown at all — the page used to print the literal
+   string "[WHATSAPP NUMBER]" to every visitor, which is worse than saying
+   nothing: it invites someone to message a number that does not exist. Set it
+   here when the channel is connected and the line appears by itself. */
+const WHATSAPP_NUMBER = '';
+
 /* ---- contribute ---------------------------------------------------------- */
 
 function contributeView() {
@@ -473,7 +480,8 @@ function contributeView() {
       ${esc(t('con.screened'))}</p>
 
     <button class="btn-gold big" id="u_send" disabled>${esc(t('cta.send'))}</button>
-    <p class="wa">${esc(t('con.wa'))} &mdash; <span dir="ltr">[WHATSAPP NUMBER]</span></p>
+    ${WHATSAPP_NUMBER ? `<p class="wa">${esc(t('con.wa'))} &mdash;
+      <a dir="ltr" href="https://wa.me/${WHATSAPP_NUMBER.replace(/[^0-9]/g, '')}">${esc(WHATSAPP_NUMBER)}</a></p>` : ''}
   </div>`;
 }
 
