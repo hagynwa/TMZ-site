@@ -359,7 +359,8 @@ async function communityView(id, year) {
       <div class="cohort">${cohort.map(p => `
         <div class="card"><div class="pf">${avatar()}</div>
           <span class="pn">${esc(p.person || '')}</span>
-          <span class="pr">${esc(p.institution || '')}</span></div>`).join('')}
+          <span class="pr">${esc(p.institution
+            || (p.role === 'child' ? t('yr.child') : t('nav.shlichim')))}</span></div>`).join('')}
       </div>
     </section>` : '';
 

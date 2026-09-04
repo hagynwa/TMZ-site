@@ -85,10 +85,29 @@ async function loadYear(slug, year, lang) {
     community: p.community,
     year: p.year,
     // The Rosh Kollel and his household are tenures like any other; the shape
-    // the year screen wants is those three groups pulled apart.
-    rosh: roster.find(r => r.role === 'rosh_kollel') || null,
-    household: roster.filter(r => ['spouse', 'child'].includes(r.role)),
-    cohort: roster.filter(r => ['shaliach', 'shlicha', 'staff'].includes(r.role)),
+    // the year screen wants is those three groups pulled apart. A household
+    // belongs to whoever household_of names, NOT to whoever happens to be Rosh
+    // Kollel that year — a shaliach's wife is not the Rosh Kollel's wife, and
+    // grouping every spouse under him says on screen that she is.
+    ...(() => {
+      const rosh = roster.find(r => r.role === 'rosh_kollel') || null;
+      const kin = roster.filter(r => ['spouse', 'child'].includes(r.role));
+      const household = rosh ? kin.filter(r => r.household_of === rosh.id) : [];
+      const claimed = new Set(household.map(r => r.id));
+
+      // Each shaliach followed immediately by whoever came with him, so a
+      // couple reads as a couple and the count matches the cards on screen.
+      const cohort = [];
+      for (const h of roster.filter(r => ['shaliach', 'shlicha', 'staff'].includes(r.role))) {
+        cohort.push(h);
+        for (const k of kin) if (k.household_of === h.id) { cohort.push(k); claimed.add(k.id); }
+      }
+      // Anyone whose household head is not on this year's roster is named on
+      // her own rather than dropped off the screen.
+      for (const k of kin) if (!claimed.has(k.id)) cohort.push(k);
+
+      return { rosh, household, cohort };
+    })(),
     photos: (p.photos || []).map(ph => ({ ...ph, url: photoUrl(ph.path) })),
     empty: roster.length === 0 && (p.photos || []).length === 0
   };
