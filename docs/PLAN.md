@@ -176,6 +176,108 @@ intermittently. The fallbacks behave correctly (the photograph is accepted and
 held for a human, marked "screening unavailable"), but nothing is being
 screened while that lasts.
 
+
+### 🟩 Automatic publishing — no human in the loop
+
+A photograph sent to WhatsApp is screened and published by the agent. Nobody
+approves it. What follows is what stands between a stranger's file and the
+organisation's public website.
+
+**1. The file, before anything else.** `_shared/imagesafe.ts`.
+The declared MIME type is a claim by the sender and is ignored; the file is
+identified by its own magic bytes, and only JPEG/PNG/WebP/GIF pass. SVG is
+refused by name — it is a document that can carry script, not an image.
+Dimensions are read straight from the header *before decoding*, so a 25000×25000
+PNG is refused while it is still 60 KB rather than after it is 1.6 GB of RAM.
+Then the decisive step: the image is **decoded to pixels and re-encoded by us**.
+A polyglot JPEG with HTML glued on, EXIF carrying a payload or a home address,
+anything hiding in the container — none of it survives being redrawn. The bytes
+a visitor downloads are never the bytes a stranger sent.
+
+**2. Screening, as a gate.** `_shared/screen.ts`.
+Two independent Gemini passes over the same picture: one describes and judges,
+one is told only to find reasons to refuse. Separate calls with separate
+prompts, because a prompt that has already concluded a picture is fine keeps
+concluding that. Hard score ceilings then apply *independently of the model's
+own conclusion*, which catches it calling a picture safe while reporting an 80
+for nudity.
+
+**Neither pass ever sees text from the sender.** Not the caption, not the
+conversation, not their name. There is no path by which a sender's words can
+argue with the gate; what they say places a photograph, never clears one. Text
+found *inside* a picture is copied into `visible_text` as data, and both prompts
+say so explicitly — so an attempt lands in the audit trail instead of being
+obeyed.
+
+**3. What rejects and what merely holds.** Harm rejects: nudity, violence,
+advertising, memes and screen captures, legible private documents, anything that
+would humiliate someone shown. Everything else can only *hold* — low confidence,
+nobody in the picture, or an emphatically off-topic subject. The distinction
+matters: the first prompt asked the model whether a picture *belonged* in the
+archive and it refused a genuine photograph of people as "unrelated to community
+life". It cannot know. A kollel dinner in Memphis and any other dinner are the
+same pixels. The evidence that a photograph belongs is that someone sent it to
+the organisation's own number and named the community and year.
+
+**4. Fail closed.** If the model will not answer — quota, outage, a refusal —
+the photograph is **held, never published**. The old behaviour was "accept it, a
+person will decide", which was right when a person was going to decide.
+
+**5. Placement.** A photograph with no community and year has nowhere to appear,
+so it is not published until it has both. They come from the caption, read first
+by plain matching against every community name in all six languages (so
+`ממפיס 2003` places itself with no model call at all) and only then by the
+model, for whatever matching could not settle. Whatever a sender names is
+remembered on `tmz_wa_contact`, so the next eleven pictures out of the same
+shoebox place themselves. **An answer can place a photograph but never approve
+one** — `publishIfReady` refuses anything screening did not clear.
+
+**6. Abuse.** Rate limit 40/hour per sender (pre-existing). Three refusals
+blocks a sender for a day, because with nobody reviewing, the only defence
+against someone probing the screener is to stop looking at their pictures.
+Perceptual hashes are computed server-side from the decoded pixels, so a
+re-compressed copy of something already held still collides.
+
+**7. Undo.** `tmz_agent_published` lists everything the agent put up, newest
+first, with every screening pass attached. `published_by='agent'` marks each row
+so a bad run can be reversed as a group.
+
+**Dials** (function secrets, no deploy needed): `AUTO_PUBLISH=off` is the stop
+button — screening still runs and still records, nothing reaches the site.
+`MIN_CONFIDENCE` (default 0.8). `REQUIRE_PEOPLE` (default on).
+
+**Verified end to end**, via the test console against the live project:
+
+| case | outcome |
+|------|---------|
+| SVG carrying `<script>`, declared `image/png` | refused at the door, before decode |
+| HTML declared `image/jpeg` | refused at the door |
+| 25000×25000 PNG decompression bomb | refused on header dimensions |
+| 1×1 tracking pixel | refused, too small |
+| real JPEG with `<script>` appended | decoded and re-encoded; payload gone |
+| cleared + caption places it | **published by the agent, live on the site** |
+| cleared, unplaced, then answered | held, then published on the answer |
+| held, then answered | **still held** — an answer cannot approve |
+| rejected | never published, sender told |
+| photograph deleted | file deleted from both buckets, URL dead |
+
+**Not verified, and it matters:** the two-pass screener itself could not be
+exercised on real photographs, because the Gemini key returns **429 quota
+exceeded**. Every branch above was proven with the test console's forced
+verdict, which skips the model entirely. The screener's plumbing works — it ran
+and returned real verdicts before the quota ran out — but its *calibration*
+against real archive photographs is untested. Fix the quota, then send a dozen
+real ones through the console before trusting it.
+
+**A found bug worth recording:** deleting a photograph left its file serving
+from the public bucket. The first fix was a trigger deleting from
+`storage.objects`, which Postgres refuses outright — *"Direct deletion from
+storage tables is not allowed"*. That refusal is the real finding: a takedown
+cannot live in SQL, and the `tmz_unpublish` function written one migration
+earlier was a half-takedown by construction. Deletion now goes through the
+Storage API in the two places that can reach it, and SQL keeps only the audit
+note.
+
 ### 🟨 Phase 6 — Campaign dashboard
 
 - [x] Coverage grid — every community × every year it was open, one cell each. 903 cells, all empty today; that is the campaign's real starting line.

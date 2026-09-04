@@ -90,7 +90,9 @@ body{margin:0;font:15px/1.5 Heebo,system-ui,sans-serif;color:var(--ink);
 .setup label{font-size:11px;color:var(--panel-dim);display:block;margin-bottom:3px}
 .setup input{width:100%;background:#080d12;border:1px solid #263340;color:#e6edf3;
   border-radius:6px;padding:7px 9px;font:inherit;font-size:13px;direction:ltr;text-align:left}
-.setup input:focus{outline:0;border-color:#3d5566}
+.setup input:focus,.setup select:focus{outline:0;border-color:#3d5566}
+.setup select{width:100%;background:#080d12;border:1px solid #263340;color:#e6edf3;
+  border-radius:6px;padding:7px 9px;font:inherit;font-size:13px}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:9px}
 .trace{flex:1;overflow-y:auto;padding:6px 0 20px}
 .step{border-bottom:1px solid #161f28;padding:9px 16px}
@@ -155,6 +157,15 @@ body{margin:0;font:15px/1.5 Heebo,system-ui,sans-serif;color:var(--ink);
         <div><label for="from">מספר שולח</label><input id="from" value="15550000001"></div>
         <div><label for="name">שם שולח</label><input id="name" value="Test sender"></div>
       </div>
+      <div>
+        <label for="verdict">סינון</label>
+        <select id="verdict">
+          <option value="">סינון אמיתי (שני מעברים של Gemini)</option>
+          <option value="publish">כפה: אישור ופרסום</option>
+          <option value="hold">כפה: החזקה</option>
+          <option value="reject">כפה: דחייה</option>
+        </select>
+      </div>
     </div>
     <div class="trace" id="trace">
       <p class="empty">כל הודעה תציג כאן בדיוק מה הסוכן עשה — מה הסינון החזיר, מה נותח מהטקסט, ומה נכתב לדאטהבייס.</p>
@@ -182,7 +193,7 @@ const remember = (k, el) => {
   if (v !== null) el.value = v;
   el.addEventListener('change', () => localStorage.setItem('tmzsim.' + k, el.value));
 };
-['tok', 'from', 'name'].forEach(k => remember(k, $(k)));
+['tok', 'from', 'name', 'verdict'].forEach(k => remember(k, $(k)));
 
 const clock = () => new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -211,8 +222,9 @@ function typing(on) {
 
 /* ---- the inspector ------------------------------------------------------- */
 
-const GOOD = ['stored', 'attached', 'screened'];
-const BAD = ['failed', 'rate limited'];
+const GOOD = ['stored', 'attached', 'screened', 'published', 'sanitised'];
+const BAD = ['failed', 'rate limited', 'refused at the door', 'rejected',
+             'blocked', 'screening unavailable', 'publish failed'];
 
 function showTrace(steps, err) {
   if (trace.querySelector('.empty')) trace.innerHTML = '';
@@ -322,6 +334,12 @@ async function send() {
     };
     if (img) { body.image = { data: img.data, mime: img.mime }; body.caption = caption || null; }
     else body.text = text;
+    /* Forcing a verdict skips the model entirely, which is how the publish,
+       hold and reject branches get tested without spending quota — and how
+       they get tested at all while the key is over its limit. It only works
+       through this console, and what it publishes is marked as test data. */
+    const forced = $('verdict').value;
+    if (forced && img) body.force_verdict = forced;
 
     const out = await call('sim=1', body);
     typing(false);

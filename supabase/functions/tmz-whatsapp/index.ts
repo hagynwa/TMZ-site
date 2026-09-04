@@ -19,6 +19,9 @@
  * simulator.
  */
 
+import { sanitize, UnsafeFile } from '../_shared/imagesafe.ts';
+import { screen, type Verdict } from '../_shared/screen.ts';
+
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const GEMINI_KEY = Deno.env.get('GEMINI_API_KEY') ?? '';
@@ -31,6 +34,13 @@ const WA_PHONE_ID = Deno.env.get('WHATSAPP_PHONE_NUMBER_ID') ?? '';
 /* Unset means the test console is off. That is the right default for a
    function that writes to the real archive. */
 const SIM_TOKEN = Deno.env.get('SIM_TOKEN') ?? '';
+
+/* The three dials on automatic publishing, all readable as secrets so they can
+   be turned without a deploy. AUTO_PUBLISH=off is the stop button: screening
+   still runs and still records its verdict, but nothing reaches the site. */
+const AUTO_PUBLISH = (Deno.env.get('AUTO_PUBLISH') ?? 'on') !== 'off';
+const MIN_CONFIDENCE = Number(Deno.env.get('MIN_CONFIDENCE') ?? '0.8');
+const REQUIRE_PEOPLE = (Deno.env.get('REQUIRE_PEOPLE') ?? 'on') !== 'off';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -90,6 +100,12 @@ interface Channel {
   reply(to: string, text: string): Promise<void>;
   trace(step: string, detail: unknown): void;
   isTest: boolean;
+  /* Test console only, and only ever set inside handleSim. Lets the publish,
+     hold and reject branches be exercised without a model call — which is the
+     difference between testing the pipeline and testing Gemini's quota. The
+     live channel below cannot set it, so there is no path from a real WhatsApp
+     message to a forced verdict. */
+  forceVerdict?: 'publish' | 'hold' | 'reject';
 }
 
 async function reply(to: string, text: string) {
@@ -232,6 +248,7 @@ function scriptOf(text: string) {
 const SAY: Record<string, Record<string, string>> = {
   en: {
     got: 'Thank you — that is now with our team. Which community is it from, and roughly which year?',
+    published: 'Thank you — it is on the site now. Send another whenever you like.',
     saved: 'Noted, thank you. Send another whenever you like.',
     rejected: 'Sorry — that image did not pass our automatic check, so it was not added.',
     dupe: 'We already hold that photograph. Thank you all the same.',
@@ -240,6 +257,7 @@ const SAY: Record<string, Record<string, string>> = {
   },
   he: {
     got: 'תודה — התמונה הועברה לצוות. מאיזו קהילה היא, ובאיזו שנה בערך?',
+    published: 'תודה — התמונה כבר באתר. אפשר לשלוח עוד מתי שתרצו.',
     saved: 'נרשם, תודה. אפשר לשלוח עוד מתי שתרצו.',
     rejected: 'מצטערים — התמונה לא עברה את הבדיקה האוטומטית ולכן לא נוספה.',
     dupe: 'התמונה הזו כבר אצלנו. תודה בכל זאת.',
@@ -248,6 +266,7 @@ const SAY: Record<string, Record<string, string>> = {
   },
   ru: {
     got: 'Спасибо — фотография передана нашей команде. Из какой она общины и примерно какого года?',
+    published: 'Спасибо — фотография уже на сайте. Присылайте ещё в любое время.',
     saved: 'Записано, спасибо. Присылайте ещё в любое время.',
     rejected: 'Извините — изображение не прошло автоматическую проверку и не было добавлено.',
     dupe: 'Эта фотография у нас уже есть. Спасибо в любом случае.',
@@ -256,6 +275,7 @@ const SAY: Record<string, Record<string, string>> = {
   },
   fr: {
     got: 'Merci — la photographie est transmise à notre équipe. De quelle communauté vient-elle, et de quelle année environ ?',
+    published: 'Merci — elle est en ligne. Envoyez-en d’autres quand vous voulez.',
     saved: 'Noté, merci. Envoyez-en d’autres quand vous voulez.',
     rejected: 'Désolé — cette image n’a pas passé notre vérification automatique et n’a pas été ajoutée.',
     dupe: 'Nous avons déjà cette photographie. Merci quand même.',
@@ -264,6 +284,7 @@ const SAY: Record<string, Record<string, string>> = {
   },
   de: {
     got: 'Danke — das Foto liegt jetzt bei unserem Team. Aus welcher Gemeinde stammt es, und ungefähr aus welchem Jahr?',
+    published: 'Danke — es ist jetzt auf der Website. Schicken Sie gerne weitere.',
     saved: 'Notiert, danke. Schicken Sie gerne weitere.',
     rejected: 'Leider hat dieses Bild unsere automatische Prüfung nicht bestanden und wurde nicht aufgenommen.',
     dupe: 'Dieses Foto haben wir bereits. Trotzdem vielen Dank.',
@@ -272,6 +293,7 @@ const SAY: Record<string, Record<string, string>> = {
   },
   es: {
     got: 'Gracias — la fotografía ya está con nuestro equipo. ¿De qué comunidad es, y de qué año aproximadamente?',
+    published: 'Gracias — ya está en el sitio. Envíe más cuando quiera.',
     saved: 'Anotado, gracias. Envíe más cuando quiera.',
     rejected: 'Lo sentimos — esa imagen no pasó nuestra verificación automática y no fue añadida.',
     dupe: 'Ya tenemos esa fotografía. Gracias de todos modos.',
@@ -289,12 +311,14 @@ const liveChannel: Channel = {
   reply,
   trace: (step, detail) => console.log(step, JSON.stringify(detail)),
   isTest: false
+  // forceVerdict is deliberately absent here and cannot be reached from a webhook.
 };
 
 /* The test console's channel. The photograph arrives inline in the request and
    replies are collected rather than sent, so the browser can render the
    conversation. Nothing else about the handler changes. */
-function simChannel(inline: { bytes: Uint8Array; mime: string } | null) {
+function simChannel(inline: { bytes: Uint8Array; mime: string } | null,
+                    forceVerdict?: 'publish' | 'hold' | 'reject') {
   const replies: string[] = [];
   const trace: { step: string; detail: unknown }[] = [];
   const ch: Channel = {
@@ -304,7 +328,8 @@ function simChannel(inline: { bytes: Uint8Array; mime: string } | null) {
     },
     async reply(_to, text) { replies.push(text); },
     trace: (step, detail) => { trace.push({ step, detail }); console.log('[sim]', step); },
-    isTest: true
+    isTest: true,
+    forceVerdict
   };
   return { ch, replies, trace };
 }
@@ -351,8 +376,31 @@ async function handleSim(req: Request, url: URL) {
   if (!body?.from) return json({ error: 'from is required' }, 400);
 
   if (url.searchParams.get('sim') === 'reset') {
-    const [row] = await rpc('tmz_sim_reset', { p_ref: `wa:${body.from}` });
-    return json({ reset: row ?? { photos: 0, submissions: 0 } });
+    const ref = `wa:${body.from}`;
+    /* Files first. SQL cannot delete from storage.objects — Supabase refuses
+       it outright — so a reset that only removed rows left every test
+       photograph still serving from its public URL, which is precisely the
+       bug this console was built to catch. */
+    const doomed = await pg(
+      `/tmz_photo?select=storage_path,derived_path,public_path` +
+      `&submitter_ref=like.${encodeURIComponent(ref + '%')}`) ?? [];
+    let files = 0;
+    for (const p of doomed) {
+      for (const [bucket, key] of [
+        ['tmz-photo-originals', p.storage_path],
+        ['tmz-photo-originals', p.derived_path],
+        ['tmz-photo-public', p.public_path]
+      ] as [string, string | null][]) {
+        if (!key) continue;
+        const r = await fetch(`${SUPABASE_URL}/storage/v1/object/${bucket}/${key}`, {
+          method: 'DELETE',
+          headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` }
+        });
+        if (r.ok) files++;
+      }
+    }
+    const [row] = await rpc('tmz_sim_reset', { p_ref: ref });
+    return json({ reset: { ...(row ?? { photos: 0, submissions: 0 }), files } });
   }
 
   const inline = body.type === 'image' && body.image?.data
@@ -360,7 +408,9 @@ async function handleSim(req: Request, url: URL) {
     : null;
   if (body.type === 'image' && !inline) return json({ error: 'image.data is required' }, 400);
 
-  const { ch, replies, trace } = simChannel(inline);
+  const force = ['publish', 'hold', 'reject'].includes(body.force_verdict)
+    ? body.force_verdict as 'publish' | 'hold' | 'reject' : undefined;
+  const { ch, replies, trace } = simChannel(inline, force);
   try {
     /* Awaited, not queued: the console needs the answer in the response. The
        real webhook must still return 200 immediately or Meta retries. */
@@ -413,23 +463,36 @@ async function handle(body: any, ch: Channel) {
 
   if (msg.type === 'text') {
     const text = msg.text?.body ?? '';
-    const comms = await pg('/tmz_community?select=slug,tmz_community_tr(lang,name)&limit=200');
-    const flat = (comms ?? []).map((c: any) => ({
-      slug: c.slug,
-      name: (c.tmz_community_tr?.find((t: any) => t.lang === 'en') ?? c.tmz_community_tr?.[0])?.name ?? c.slug
-    }));
 
     /* Two ways this can fall back to a default, and both used to default to
        English: the model returning something unparseable, and the call failing
        outright. The script the sender typed in survives either. */
-    let det: any = { language: scriptOf(text) };
+    const comms = await communityList();
+    const local = parseLocally(text, comms);
+    let det: any = { language: scriptOf(text), ...local };
     if (GEMINI_KEY) {
-      try { det = await parseDetails(text, flat); }
-      catch (e) { console.error(e); ch.trace('parse failed', { error: String(e) }); }
+      try {
+        const m = await parseDetails(text, comms);
+        /* Plain matching wins where it found something: it read the actual
+           words, and it cannot hallucinate a community that was never named. */
+        det = { ...m, ...Object.fromEntries(Object.entries(local).filter(([, v]) => v != null)) };
+      } catch (e) { console.error(e); ch.trace('parse failed', { error: String(e) }); }
     }
-    const lang = det.language ?? 'en';
+    const lang = det.language ?? scriptOf(text);
     ch.trace('parsed', det);
-    await remember(waId, { lang, is_test: ch.isTest });
+
+    /* Whatever they name here travels with them, so the next eleven pictures
+       out of the same shoebox place themselves. */
+    let communityId: string | null = null;
+    if (det.community_slug) {
+      const c = await pg(`/tmz_community?select=id&slug=eq.${encodeURIComponent(det.community_slug)}`);
+      communityId = c?.[0]?.id ?? null;
+    }
+    await remember(waId, {
+      lang, is_test: ch.isTest,
+      ...(communityId ? { community_id: communityId } : {}),
+      ...(det.year ? { year: det.year } : {})
+    });
 
     // Attach the answer to whatever they last sent, if anything is waiting.
     const recent = await pg(
@@ -440,17 +503,20 @@ async function handle(body: any, ch: Channel) {
     if (recent?.length && det.is_answer !== false) {
       const patch: Record<string, unknown> = {};
       if (det.year && !recent[0].year) patch.year = det.year;
-      if (det.community_slug && !recent[0].community_id) {
-        const c = await pg(`/tmz_community?select=id&slug=eq.${encodeURIComponent(det.community_slug)}`);
-        if (c?.[0]) patch.community_id = c[0].id;
-      }
+      if (communityId && !recent[0].community_id) patch.community_id = communityId;
       const note = [det.people, det.event_note].filter(Boolean).join(' · ');
       if (note) patch.submitter_ref = `${recent[0].submitter_ref ?? waId} · ${note}`;
       if (Object.keys(patch).length) {
         await pg(`/tmz_photo?id=eq.${recent[0].id}`, { method: 'PATCH', body: JSON.stringify(patch) });
       }
       ch.trace('attached', { photo_id: recent[0].id, patch });
-      await ch.reply(from, say(lang, 'saved'));
+
+      /* The answer is what a held photograph was waiting for. Screening has
+         already decided; publishIfReady will refuse anything it did not clear,
+         so an answer can place a photograph but never approve one. */
+      const live = await publishIfReady(recent[0].id, ch);
+      ch.trace(live ? 'published' : 'still held', { photo_id: recent[0].id });
+      await ch.reply(from, say(lang, live ? 'published' : 'saved'));
     } else {
       ch.trace('nothing waiting', { pending: recent?.length ?? 0 });
       await ch.reply(from, say(lang, text.length < 4 ? 'hello' : 'nophoto'));
@@ -464,15 +530,25 @@ async function handle(body: any, ch: Channel) {
   }
 
   // ---- an actual photograph ----
+  /* The whole automatic path lives below. It publishes without anyone looking
+     first, so every branch is written to fail towards NOT publishing: an
+     unreadable file, a screener that will not answer, a confidence below the
+     line, a picture with nobody in it — each of those holds the photograph
+     rather than letting it through. The only route to the public bucket is a
+     picture two independent passes agreed on, that we re-encoded ourselves,
+     and whose community and year we know. */
+
+  const contact = await contactOf(waId);
+  if (contact?.blocked_until && new Date(contact.blocked_until) > new Date()) {
+    ch.trace('blocked', { until: contact.blocked_until, strikes: contact.strikes });
+    return;
+  }
+
   const allowed = await rpc('tmz_rate_take', {
     p_bucket: `wa:${from}`, p_limit: 40, p_window_seconds: 3600
   });
   if (allowed === false) { ch.trace('rate limited', { bucket: `wa:${from}` }); return; }
 
-  /* A photograph carries no text, so the language has to come from the caption
-     or from whatever this sender was writing in last time. Answering someone in
-     English because their picture had no words is a small rudeness the whole
-     archive is built to avoid. */
   const caption = msg.image?.caption ?? '';
   const lang = caption && scriptOf(caption) !== 'en' ? scriptOf(caption) : await recallLang(waId);
   await remember(waId, {
@@ -480,73 +556,297 @@ async function handle(body: any, ch: Channel) {
     display_name: value?.contacts?.[0]?.profile?.name ?? null
   });
 
+  let clean;
   try {
     const { bytes, mime } = await ch.fetchMedia(msg.image.id);
-    const b64 = toBase64(bytes);
+    ch.trace('fetched', { bytes: bytes.length, declared_mime: mime });
+    clean = await sanitize(bytes);
+    ch.trace('sanitised', {
+      kind: clean.kind, out: `${clean.width}x${clean.height}`, resized: clean.resized,
+      phash: clean.phash, archive_bytes: clean.archiveBytes.length,
+      public_bytes: clean.publicBytes.length
+    });
+  } catch (e) {
+    /* A file that will not survive being redrawn never reaches the model, the
+       storage bucket or the database. It is the cheapest refusal there is, and
+       the one that stops the whole class of "image" that is really something
+       else. */
+    const why = e instanceof UnsafeFile ? e.message : String(e);
+    ch.trace('refused at the door', { why });
+    await strike(waId, ch.isTest);
+    await ch.reply(from, say(lang, 'rejected'));
+    return;
+  }
 
-    let verdict: any = { publishable: true, reasons: ['screening skipped'], scores: {}, guess: {} };
-    let model = 'none';
-    if (GEMINI_KEY) {
-      model = GEMINI_MODEL;
-      try {
-        verdict = JSON.parse(await gemini([
-          { text: SCREEN_PROMPT }, { inline_data: { mime_type: mime, data: b64 } }
-        ]));
-      } catch (e) {
-        console.error('screen', e);
-        verdict = { publishable: true, reasons: ['screening unavailable'], scores: {}, guess: {} };
+  /* The same photograph arriving twice — forwarded round a family, or sent
+     again because the first reply was missed — is common enough that it has to
+     be cheap. The hash is of the decoded pixels, so a re-compressed copy still
+     collides. */
+  const dupe = await rpc('tmz_find_duplicate', { p_hash: clean.phash, p_max_distance: 4 })
+    .catch(() => null);
+  if (Array.isArray(dupe) ? dupe.length > 0 : Boolean(dupe)) {
+    ch.trace('duplicate', { of: dupe });
+    await ch.reply(from, say(lang, 'dupe'));
+    return;
+  }
+
+  // ---- screening, which is the gate ----
+  let verdict: Verdict;
+  if (ch.forceVerdict) {
+    verdict = {
+      decision: ch.forceVerdict, confidence: 1, facts: {}, scores: {}, passes: [],
+      reasons: ['VERDICT FORCED BY THE TEST CONSOLE — no model looked at this picture']
+    };
+    ch.trace('screening SKIPPED (forced)', { decision: ch.forceVerdict });
+  } else if (!GEMINI_KEY) {
+    verdict = holdBecause('no screening key configured');
+  } else {
+    try {
+      verdict = await screen(toBase64(clean.archiveBytes), 'image/jpeg', {
+        model: GEMINI_MODEL, key: GEMINI_KEY,
+        minConfidence: MIN_CONFIDENCE, requirePeople: REQUIRE_PEOPLE
+      });
+    } catch (e) {
+      /* Fail closed. The old behaviour — accept it, let a person decide — was
+         right when a person was going to decide. With nobody downstream,
+         "the screener is unavailable" has to mean "not published", or an
+         outage becomes an open door. */
+      ch.trace('screening unavailable', { error: String(e).slice(0, 300) });
+      verdict = holdBecause(`screening unavailable: ${String(e).slice(0, 200)}`);
+    }
+  }
+  if (!AUTO_PUBLISH && verdict.decision === 'publish') {
+    verdict = { ...verdict, decision: 'hold',
+                reasons: ['auto-publish is switched off', ...verdict.reasons] };
+  }
+  ch.trace('screened', {
+    decision: verdict.decision, confidence: verdict.confidence,
+    reasons: verdict.reasons, scores: verdict.scores, facts: verdict.facts
+  });
+
+  // ---- record it ----
+  const [submission] = await pg('/tmz_submission', {
+    method: 'POST', prefer: 'return=representation',
+    body: JSON.stringify([{
+      contributor_name: value?.contacts?.[0]?.profile?.name ?? null,
+      contributor_note: caption || null,
+      source: 'whatsapp', ip_hash: waId, consented: true, is_test: ch.isTest, lang
+    }])
+  });
+
+  const key = `${new Date().getFullYear()}/wa-${submission.id}.jpg`;
+  const derivedKey = `derived/${key}`;
+  await putObject('tmz-photo-originals', key, clean.archiveBytes);
+  await putObject('tmz-photo-originals', derivedKey, clean.publicBytes);
+
+  /* Community and year come from the caption first, then from what this sender
+     already told us. Someone emptying a shoebox says "Memphis, 2003" once. */
+  const placed = await placeFrom(caption, contact, ch);
+
+  const [photo] = await pg('/tmz_photo', {
+    method: 'POST', prefer: 'return=representation',
+    body: JSON.stringify([{
+      storage_path: key, derived_path: derivedKey,
+      width: clean.width, height: clean.height, bytes: clean.archiveBytes.length,
+      phash: clean.phash,
+      community_id: placed.community_id, year: placed.year,
+      event_type_id: verdict.facts.event_type || null,
+      venue: verdict.facts.setting || null,
+      status: verdict.decision === 'reject' ? 'rejected' : 'pending',
+      agent_decision: verdict.decision,
+      source: 'whatsapp', submission_id: submission.id, submitter_ref: waId
+    }])
+  });
+
+  await pg('/tmz_moderation', {
+    method: 'POST',
+    body: JSON.stringify([
+      ...verdict.passes.map(p => ({
+        photo_id: photo.id, model: GEMINI_MODEL, pass: p.pass,
+        verdict: verdict.decision === 'reject' ? 'rejected' : 'pending',
+        scores: verdict.scores ?? {}, reasons: verdict.reasons ?? []
+      })),
+      {
+        photo_id: photo.id, model: ch.forceVerdict ? 'forced (test console)' : GEMINI_MODEL,
+        pass: 'final',
+        verdict: verdict.decision === 'reject' ? 'rejected' : 'pending',
+        decision: verdict.decision,
+        scores: verdict.scores ?? {}, reasons: verdict.reasons ?? []
+      }
+    ])
+  });
+
+  if (verdict.decision === 'reject') {
+    ch.trace('rejected', { photo_id: photo.id, reasons: verdict.reasons });
+    await strike(waId, ch.isTest);
+    await ch.reply(from, say(lang, 'rejected'));
+    return;
+  }
+
+  const live = await publishIfReady(photo.id, ch);
+  ch.trace(live ? 'published' : 'held', {
+    photo_id: photo.id, community_id: placed.community_id, year: placed.year,
+    decision: verdict.decision
+  });
+  await ch.reply(from, say(lang, live ? 'published' : 'got'));
+}
+
+/* ---- placement ----------------------------------------------------------- */
+
+async function placeFrom(caption: string, contact: any, ch: Channel) {
+  let community_id = contact?.community_id ?? null;
+  let year = contact?.year ?? null;
+  if (!caption) return { community_id, year };
+
+  const comms = await communityList();
+  const slugToId = async (slug: string) => {
+    const c = await pg(`/tmz_community?select=id&slug=eq.${encodeURIComponent(slug)}`);
+    return c?.[0]?.id ?? null;
+  };
+
+  const local = parseLocally(caption, comms);
+  if (local.year) year = local.year;
+  if (local.community_slug) community_id = (await slugToId(local.community_slug)) ?? community_id;
+  ch.trace('caption read locally', local);
+
+  /* The model is only asked about what plain matching could not settle, which
+     keeps a photograph placeable when the quota is gone. */
+  if (GEMINI_KEY && (!year || !community_id)) {
+    try {
+      const det = await parseDetails(caption, comms);
+      ch.trace('caption', det);
+      if (!year && det.year) year = det.year;
+      if (!community_id && det.community_slug) {
+        community_id = (await slugToId(det.community_slug)) ?? community_id;
+      }
+    } catch (e) { ch.trace('caption parse failed', { error: String(e).slice(0, 200) }); }
+  }
+  return { community_id, year };
+}
+
+async function communityList() {
+  const comms = await pg('/tmz_community?select=slug,tmz_community_tr(lang,name)&limit=200');
+  return (comms ?? []).map((c: any) => ({
+    slug: c.slug,
+    name: (c.tmz_community_tr?.find((t: any) => t.lang === 'en') ?? c.tmz_community_tr?.[0])?.name ?? c.slug,
+    /* Every rendering we hold. A caption reading "ממפיס 2003" places itself
+       without a model call precisely because the translations exist. */
+    names: (c.tmz_community_tr ?? []).map((t: any) => t.name).filter(Boolean)
+  }));
+}
+
+/* The common caption is "Memphis, 2003" and it does not need a language model
+   to read. This runs first, costs nothing, and works when the model is
+   unavailable — which is exactly when a photograph would otherwise sit
+   unplaced and unpublished forever. */
+function parseLocally(text: string, comms: { slug: string; names?: string[]; name: string }[]) {
+  const out: { community_slug: string | null; year: number | null } =
+    { community_slug: null, year: null };
+  if (!text) return out;
+
+  const years = [...text.matchAll(/\b(19[9]\d|20[0-4]\d)\b/g)].map(m => Number(m[1]))
+    .filter(y => y >= 1990 && y <= 2030);
+  if (years.length === 1) out.year = years[0];
+  /* A range like "2003-2004" is the school year the archive already thinks in;
+     take the first, which is how every tenure in the database is keyed. */
+  else if (years.length > 1 && years[1] - years[0] === 1) out.year = years[0];
+
+  const hay = text.toLowerCase();
+  let best: { slug: string; len: number } | null = null;
+  for (const c of comms) {
+    for (const n of [...(c.names ?? []), c.name, c.slug]) {
+      const needle = String(n).toLowerCase().trim();
+      /* Longest match wins, so "Kansas City" is not shadowed by a shorter name
+         that happens to be a substring of the same caption. */
+      if (needle.length >= 4 && hay.includes(needle) && (!best || needle.length > best.len)) {
+        best = { slug: c.slug, len: needle.length };
       }
     }
-    ch.trace('screened', verdict);
-
-    const [submission] = await pg('/tmz_submission', {
-      method: 'POST', prefer: 'return=representation',
-      body: JSON.stringify([{
-        contributor_name: value?.contacts?.[0]?.profile?.name ?? null,
-        contributor_note: caption || null,
-        source: 'whatsapp', ip_hash: waId, consented: true, is_test: ch.isTest, lang
-      }])
-    });
-
-    const ext = mime?.includes('png') ? 'png' : mime?.includes('webp') ? 'webp' : 'jpg';
-    const key = `${new Date().getFullYear()}/wa-${submission.id}.${ext}`;
-    const up = await fetch(`${SUPABASE_URL}/storage/v1/object/tmz-photo-originals/${key}`, {
-      method: 'POST',
-      headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`,
-                 'Content-Type': mime, 'x-upsert': 'true' },
-      body: bytes
-    });
-    if (!up.ok) throw new Error(`storage ${up.status}`);
-
-    const g = verdict.guess ?? {};
-    const [photo] = await pg('/tmz_photo', {
-      method: 'POST', prefer: 'return=representation',
-      body: JSON.stringify([{
-        storage_path: key,
-        bytes: bytes.length,
-        event_type_id: g.event_type || null,
-        venue: g.setting || null,
-        status: verdict.publishable === false ? 'rejected' : 'pending',
-        source: 'whatsapp',
-        submission_id: submission.id,
-        submitter_ref: waId
-      }])
-    });
-
-    await pg('/tmz_moderation', {
-      method: 'POST',
-      body: JSON.stringify([{
-        photo_id: photo.id, model,
-        verdict: verdict.publishable === false ? 'rejected' : 'pending',
-        scores: verdict.scores ?? {}, reasons: verdict.reasons ?? []
-      }])
-    });
-
-    ch.trace('stored', { photo_id: photo.id, storage_path: key, status: photo.status });
-    await ch.reply(from, say(lang, verdict.publishable === false ? 'rejected' : 'got'));
-  } catch (e) {
-    console.error('image handling', e);
-    ch.trace('failed', { error: String(e) });
-    throw e;
   }
+  if (best) out.community_slug = best.slug;
+  return out;
 }
+
+/* The single door to the public bucket. Everything that publishes goes through
+   here, so the conditions are stated once: screening said publish, the
+   photograph has somewhere to appear, and it is not already up. */
+async function publishIfReady(photoId: string, ch: Channel) {
+  const rows = await pg(
+    `/tmz_photo?select=id,community_id,year,derived_path,storage_path,public_path,agent_decision,status` +
+    `&id=eq.${photoId}`);
+  const p = rows?.[0];
+  if (!p) return false;
+  if (p.public_path) return true;
+  if (p.agent_decision !== 'publish') return false;
+  if (!p.community_id || !p.year) return false;
+  if (!AUTO_PUBLISH) return false;
+
+  const source = p.derived_path ?? p.storage_path;
+  const dest = source.replace(/^derived\//, '');
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/copy`, {
+    method: 'POST',
+    headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`,
+               'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      bucketId: 'tmz-photo-originals', sourceKey: source,
+      destinationBucket: 'tmz-photo-public', destinationKey: dest
+    })
+  });
+  if (!res.ok) {
+    ch.trace('publish failed', { status: res.status, body: (await res.text()).slice(0, 200) });
+    return false;
+  }
+
+  await pg(`/tmz_photo?id=eq.${photoId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      status: 'approved', public_path: dest,
+      published_by: 'agent', published_at: new Date().toISOString()
+    })
+  });
+  await pg('/tmz_moderation', {
+    method: 'POST',
+    body: JSON.stringify([{
+      photo_id: photoId, model: GEMINI_MODEL, pass: 'final', decision: 'published',
+      verdict: 'approved', reasons: ['published automatically']
+    }])
+  });
+  return true;
+}
+
+/* ---- contacts and abuse -------------------------------------------------- */
+
+async function contactOf(ref: string) {
+  try {
+    const rows = await pg(`/tmz_wa_contact?select=*&ref=eq.${encodeURIComponent(ref)}`);
+    return rows?.[0] ?? null;
+  } catch { return null; }
+}
+
+/* Nobody reviews these decisions, so the only thing standing between a
+   determined sender and an unlucky screening result is refusing to keep
+   looking at their pictures. Three refusals buys a day of silence. */
+async function strike(ref: string, isTest: boolean) {
+  try {
+    const c = await contactOf(ref);
+    const strikes = (c?.strikes ?? 0) + 1;
+    const blocked_until = strikes >= 3
+      ? new Date(Date.now() + 24 * 3600 * 1000).toISOString()
+      : (c?.blocked_until ?? null);
+    await remember(ref, { strikes, blocked_until, is_test: isTest });
+  } catch (e) { console.error('strike', e); }
+}
+
+async function putObject(bucket: string, key: string, bytes: Uint8Array) {
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${bucket}/${key}`, {
+    method: 'POST',
+    headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`,
+               'Content-Type': 'image/jpeg', 'x-upsert': 'true' },
+    body: bytes
+  });
+  if (!res.ok) throw new Error(`storage ${bucket}/${key} → ${res.status} ${await res.text()}`);
+}
+
+const holdBecause = (why: string): Verdict => ({
+  decision: 'hold', reasons: [why], confidence: 0, facts: {}, scores: {}, passes: []
+});
