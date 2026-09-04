@@ -9,6 +9,14 @@
  * and the questions come afterwards. Someone digging through a shoebox will
  * send five pictures in a row; making them answer four questions before the
  * first one is accepted is how you lose the other four.
+ *
+ * A second entry point (?sim=1, gated by SIM_TOKEN) exists so the conversation
+ * can be exercised from a browser before the organisation's WhatsApp number is
+ * connected. It swaps the two transport edges — where a photograph comes from,
+ * where a reply goes — and NOTHING else. Screening, parsing, deduplication,
+ * rate limiting and every database write are the same lines of code the real
+ * webhook runs, because a simulator that reimplements the agent tests the
+ * simulator.
  */
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -20,6 +28,15 @@ const VERIFY_TOKEN = Deno.env.get('VERIFY_TOKEN') ?? '';
 const GRAPH_URL = Deno.env.get('META_GRAPH_API_URL') ?? 'https://gateway.hookmyapp.com/meta/v22.0';
 const WA_TOKEN = Deno.env.get('WHATSAPP_ACCESS_TOKEN') ?? '';
 const WA_PHONE_ID = Deno.env.get('WHATSAPP_PHONE_NUMBER_ID') ?? '';
+/* Unset means the test console is off. That is the right default for a
+   function that writes to the real archive. */
+const SIM_TOKEN = Deno.env.get('SIM_TOKEN') ?? '';
+
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-tmz-sim-token',
+  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS'
+};
 
 // ---- database --------------------------------------------------------------
 
@@ -63,7 +80,17 @@ async function verifySignature(raw: string, header: string | null) {
   return diff === 0 ? { ok: true, why: '' } : { ok: false, why: 'signature mismatch' };
 }
 
-// ---- outbound --------------------------------------------------------------
+// ---- the channel -----------------------------------------------------------
+
+/* Everything the handler needs from the outside world. The real webhook binds
+   this to Meta's Graph API; the test console binds it to the request body and
+   an array. The handler cannot tell the difference, which is the point. */
+interface Channel {
+  fetchMedia(ref: string): Promise<{ bytes: Uint8Array; mime: string }>;
+  reply(to: string, text: string): Promise<void>;
+  trace(step: string, detail: unknown): void;
+  isTest: boolean;
+}
 
 async function reply(to: string, text: string) {
   if (!WA_TOKEN || !WA_PHONE_ID) {
@@ -161,10 +188,45 @@ Return ONLY JSON:
 
 community_slug must be one of the slugs above or null. year is 1996-2026 or
 null. people is whoever they named. event_note is the occasion if mentioned.
-language is the ISO code they wrote in (en, he, ru, fr, de, es, ...).
+language is the ISO code of the language the message is WRITTEN in — judge it
+from the words themselves, not from the topic. "Bonjour" is fr, "Hallo" is de,
+"Hola" is es. Only use en if the words really are English.
 is_answer is false if the message is unrelated small talk.`
   }]);
-  try { return JSON.parse(out); } catch { return { language: 'en' }; }
+  let det: any;
+  try { det = JSON.parse(out); } catch { det = {}; }
+  /* The script someone types in settles the question the model keeps getting
+     wrong: asked about "שלום" it answers English. Hebrew and Cyrillic letters
+     are not a hint, they are the answer, so they win. Latin script really is
+     ambiguous between en/fr/de/es, and there the model's guess stands. */
+  const script = scriptOf(text);
+  if (script !== 'en' || !det.language) det.language = script;
+  return det;
+}
+
+/* The sender's own row, written on the first message of any kind — which is
+   what lets a greeting in Hebrew decide the language of the photograph that
+   follows it, before any submission exists. */
+async function remember(ref: string, patch: Record<string, unknown>) {
+  try {
+    await pg('/tmz_wa_contact?on_conflict=ref', {
+      method: 'POST', prefer: 'resolution=merge-duplicates',
+      body: JSON.stringify([{ ref, last_seen: new Date().toISOString(), ...patch }])
+    });
+  } catch (e) { console.error('remember', e); }
+}
+
+async function recallLang(ref: string) {
+  try {
+    const rows = await pg(`/tmz_wa_contact?select=lang&ref=eq.${encodeURIComponent(ref)}`);
+    return rows?.[0]?.lang ?? 'en';
+  } catch { return 'en'; }
+}
+
+function scriptOf(text: string) {
+  if (/[\u0590-\u05FF]/.test(text)) return 'he';
+  if (/[\u0400-\u04FF]/.test(text)) return 'ru';
+  return 'en';
 }
 
 const SAY: Record<string, Record<string, string>> = {
@@ -191,14 +253,129 @@ const SAY: Record<string, Record<string, string>> = {
     dupe: 'Эта фотография у нас уже есть. Спасибо в любом случае.',
     hello: 'Здравствуйте, и спасибо, что помогаете собрать архив «Тора МиЦион 30». Пришлите фотографию, дальше я всё сделаю.',
     nophoto: 'Присылайте фотографию, когда будет удобно — можно несколько подряд.'
+  },
+  fr: {
+    got: 'Merci — la photographie est transmise à notre équipe. De quelle communauté vient-elle, et de quelle année environ ?',
+    saved: 'Noté, merci. Envoyez-en d’autres quand vous voulez.',
+    rejected: 'Désolé — cette image n’a pas passé notre vérification automatique et n’a pas été ajoutée.',
+    dupe: 'Nous avons déjà cette photographie. Merci quand même.',
+    hello: 'Bonjour, et merci de nous aider à constituer les archives Torah MiTzion 30. Envoyez une photographie et je m’occupe du reste.',
+    nophoto: 'Envoyez une photographie quand vous voulez — je peux en recevoir plusieurs à la suite.'
+  },
+  de: {
+    got: 'Danke — das Foto liegt jetzt bei unserem Team. Aus welcher Gemeinde stammt es, und ungefähr aus welchem Jahr?',
+    saved: 'Notiert, danke. Schicken Sie gerne weitere.',
+    rejected: 'Leider hat dieses Bild unsere automatische Prüfung nicht bestanden und wurde nicht aufgenommen.',
+    dupe: 'Dieses Foto haben wir bereits. Trotzdem vielen Dank.',
+    hello: 'Hallo, und danke, dass Sie beim Aufbau des Torah-MiTzion-30-Archivs helfen. Schicken Sie ein Foto, den Rest übernehme ich.',
+    nophoto: 'Schicken Sie ein Foto, wann immer Sie mögen — auch mehrere hintereinander.'
+  },
+  es: {
+    got: 'Gracias — la fotografía ya está con nuestro equipo. ¿De qué comunidad es, y de qué año aproximadamente?',
+    saved: 'Anotado, gracias. Envíe más cuando quiera.',
+    rejected: 'Lo sentimos — esa imagen no pasó nuestra verificación automática y no fue añadida.',
+    dupe: 'Ya tenemos esa fotografía. Gracias de todos modos.',
+    hello: 'Hola, y gracias por ayudarnos a construir el archivo Torah MiTzion 30. Envíe una fotografía y yo me encargo del resto.',
+    nophoto: 'Envíe una fotografía cuando le venga bien — puedo recibir varias seguidas.'
   }
 };
 const say = (lang: string, key: string) => (SAY[lang] ?? SAY.en)[key] ?? SAY.en[key];
 
 // ---- handler ---------------------------------------------------------------
 
+/* The real channel: photographs come from Meta, replies go to Meta. */
+const liveChannel: Channel = {
+  fetchMedia,
+  reply,
+  trace: (step, detail) => console.log(step, JSON.stringify(detail)),
+  isTest: false
+};
+
+/* The test console's channel. The photograph arrives inline in the request and
+   replies are collected rather than sent, so the browser can render the
+   conversation. Nothing else about the handler changes. */
+function simChannel(inline: { bytes: Uint8Array; mime: string } | null) {
+  const replies: string[] = [];
+  const trace: { step: string; detail: unknown }[] = [];
+  const ch: Channel = {
+    async fetchMedia() {
+      if (!inline) throw new Error('no image in the simulated message');
+      return inline;
+    },
+    async reply(_to, text) { replies.push(text); },
+    trace: (step, detail) => { trace.push({ step, detail }); console.log('[sim]', step); },
+    isTest: true
+  };
+  return { ch, replies, trace };
+}
+
+function b64ToBytes(b64: string) {
+  const clean = b64.includes(',') ? b64.slice(b64.indexOf(',') + 1) : b64;
+  const bin = atob(clean);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status, headers: { ...CORS, 'Content-Type': 'application/json' }
+  });
+
+/* Wraps a simulated message in the exact envelope Meta sends, so the handler
+   reads it through the same accessors as a real one. If Meta's shape changes,
+   the console breaks too — which is correct: it is supposed to be a mirror. */
+function metaEnvelope(m: any) {
+  const msg: any = { from: m.from, id: `sim.${crypto.randomUUID()}`, type: m.type };
+  if (m.type === 'image') msg.image = { id: 'sim', caption: m.caption ?? undefined };
+  else msg.text = { body: m.text ?? '' };
+  return {
+    entry: [{ changes: [{ value: {
+      contacts: [{ profile: { name: m.name ?? 'Test sender' }, wa_id: m.from }],
+      messages: [msg]
+    } }] }]
+  };
+}
+
+async function handleSim(req: Request, url: URL) {
+  if (!SIM_TOKEN) return json({ error: 'The test console is not enabled (SIM_TOKEN is unset).' }, 503);
+  const given = req.headers.get('x-tmz-sim-token') ?? '';
+  /* Constant-time-ish: the token is not a signature, but there is no reason to
+     leak its length either. */
+  if (given.length !== SIM_TOKEN.length) return json({ error: 'bad token' }, 401);
+  let diff = 0;
+  for (let i = 0; i < SIM_TOKEN.length; i++) diff |= given.charCodeAt(i) ^ SIM_TOKEN.charCodeAt(i);
+  if (diff !== 0) return json({ error: 'bad token' }, 401);
+
+  const body = await req.json().catch(() => null) as any;
+  if (!body?.from) return json({ error: 'from is required' }, 400);
+
+  if (url.searchParams.get('sim') === 'reset') {
+    const [row] = await rpc('tmz_sim_reset', { p_ref: `wa:${body.from}` });
+    return json({ reset: row ?? { photos: 0, submissions: 0 } });
+  }
+
+  const inline = body.type === 'image' && body.image?.data
+    ? { bytes: b64ToBytes(body.image.data), mime: body.image.mime ?? 'image/jpeg' }
+    : null;
+  if (body.type === 'image' && !inline) return json({ error: 'image.data is required' }, 400);
+
+  const { ch, replies, trace } = simChannel(inline);
+  try {
+    /* Awaited, not queued: the console needs the answer in the response. The
+       real webhook must still return 200 immediately or Meta retries. */
+    await handle(metaEnvelope(body), ch);
+  } catch (e) {
+    return json({ replies, trace, error: String(e) }, 200);
+  }
+  return json({ replies, trace });
+}
+
 Deno.serve(async req => {
   const url = new URL(req.url);
+
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
+  if (url.searchParams.has('sim') && req.method === 'POST') return handleSim(req, url);
 
   // Meta's verification handshake
   if (req.method === 'GET') {
@@ -221,17 +398,18 @@ Deno.serve(async req => {
   // Always 200 quickly; Meta retries anything else, and a retry storm on a
   // slow Gemini call would duplicate photographs.
   const body = JSON.parse(raw);
-  queueMicrotask(() => handle(body).catch(e => console.error('handler', e)));
+  queueMicrotask(() => handle(body, liveChannel).catch(e => console.error('handler', e)));
   return new Response('ok', { status: 200 });
 });
 
-async function handle(body: any) {
+async function handle(body: any, ch: Channel) {
   const value = body?.entry?.[0]?.changes?.[0]?.value;
   const msg = value?.messages?.[0];
   if (!msg) return;
 
   const from = msg.from as string;
   const waId = `wa:${from}`;
+  ch.trace('received', { type: msg.type, from });
 
   if (msg.type === 'text') {
     const text = msg.text?.body ?? '';
@@ -241,9 +419,17 @@ async function handle(body: any) {
       name: (c.tmz_community_tr?.find((t: any) => t.lang === 'en') ?? c.tmz_community_tr?.[0])?.name ?? c.slug
     }));
 
-    let det: any = { language: 'en' };
-    if (GEMINI_KEY) { try { det = await parseDetails(text, flat); } catch (e) { console.error(e); } }
+    /* Two ways this can fall back to a default, and both used to default to
+       English: the model returning something unparseable, and the call failing
+       outright. The script the sender typed in survives either. */
+    let det: any = { language: scriptOf(text) };
+    if (GEMINI_KEY) {
+      try { det = await parseDetails(text, flat); }
+      catch (e) { console.error(e); ch.trace('parse failed', { error: String(e) }); }
+    }
     const lang = det.language ?? 'en';
+    ch.trace('parsed', det);
+    await remember(waId, { lang, is_test: ch.isTest });
 
     // Attach the answer to whatever they last sent, if anything is waiting.
     const recent = await pg(
@@ -263,15 +449,17 @@ async function handle(body: any) {
       if (Object.keys(patch).length) {
         await pg(`/tmz_photo?id=eq.${recent[0].id}`, { method: 'PATCH', body: JSON.stringify(patch) });
       }
-      await reply(from, say(lang, 'saved'));
+      ch.trace('attached', { photo_id: recent[0].id, patch });
+      await ch.reply(from, say(lang, 'saved'));
     } else {
-      await reply(from, say(lang, text.length < 4 ? 'hello' : 'nophoto'));
+      ch.trace('nothing waiting', { pending: recent?.length ?? 0 });
+      await ch.reply(from, say(lang, text.length < 4 ? 'hello' : 'nophoto'));
     }
     return;
   }
 
   if (msg.type !== 'image') {
-    await reply(from, say('en', 'nophoto'));
+    await ch.reply(from, say('en', 'nophoto'));
     return;
   }
 
@@ -279,10 +467,21 @@ async function handle(body: any) {
   const allowed = await rpc('tmz_rate_take', {
     p_bucket: `wa:${from}`, p_limit: 40, p_window_seconds: 3600
   });
-  if (allowed === false) return;
+  if (allowed === false) { ch.trace('rate limited', { bucket: `wa:${from}` }); return; }
+
+  /* A photograph carries no text, so the language has to come from the caption
+     or from whatever this sender was writing in last time. Answering someone in
+     English because their picture had no words is a small rudeness the whole
+     archive is built to avoid. */
+  const caption = msg.image?.caption ?? '';
+  const lang = caption && scriptOf(caption) !== 'en' ? scriptOf(caption) : await recallLang(waId);
+  await remember(waId, {
+    lang, is_test: ch.isTest,
+    display_name: value?.contacts?.[0]?.profile?.name ?? null
+  });
 
   try {
-    const { bytes, mime } = await fetchMedia(msg.image.id);
+    const { bytes, mime } = await ch.fetchMedia(msg.image.id);
     const b64 = toBase64(bytes);
 
     let verdict: any = { publishable: true, reasons: ['screening skipped'], scores: {}, guess: {} };
@@ -298,13 +497,14 @@ async function handle(body: any) {
         verdict = { publishable: true, reasons: ['screening unavailable'], scores: {}, guess: {} };
       }
     }
+    ch.trace('screened', verdict);
 
     const [submission] = await pg('/tmz_submission', {
       method: 'POST', prefer: 'return=representation',
       body: JSON.stringify([{
         contributor_name: value?.contacts?.[0]?.profile?.name ?? null,
-        contributor_note: msg.image?.caption ?? null,
-        source: 'whatsapp', ip_hash: waId, consented: true
+        contributor_note: caption || null,
+        source: 'whatsapp', ip_hash: waId, consented: true, is_test: ch.isTest, lang
       }])
     });
 
@@ -342,8 +542,11 @@ async function handle(body: any) {
       }])
     });
 
-    await reply(from, say('en', verdict.publishable === false ? 'rejected' : 'got'));
+    ch.trace('stored', { photo_id: photo.id, storage_path: key, status: photo.status });
+    await ch.reply(from, say(lang, verdict.publishable === false ? 'rejected' : 'got'));
   } catch (e) {
     console.error('image handling', e);
+    ch.trace('failed', { error: String(e) });
+    throw e;
   }
 }

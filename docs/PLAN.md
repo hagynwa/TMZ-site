@@ -149,6 +149,33 @@ POST gets 401, a GET without the verify token gets 403. Both confirmed live.
 - [x] Writes straight into the same moderation queue as the upload page
 - [ ] **Blocked on a human step:** `hookmyapp login` and `hookmyapp channels connect whatsapp` both open a browser flow that cannot be automated. After connecting, set `WEBHOOK_HMAC_SECRET`, `VERIFY_TOKEN`, `WHATSAPP_ACCESS_TOKEN` and `WHATSAPP_PHONE_NUMBER_ID` as function secrets and point the channel webhook at `https://xuoxkmwtdascazutoaxs.supabase.co/functions/v1/tmz-whatsapp`. Until then the function refuses everything, which is the correct default.
 
+
+**Test console — [`/sim/`](../docs/sim/index.html), live at `/TMZ-site/sim/`.**
+Built so the agent can be exercised before the organisation's number is
+connected. It drives the *real* `tmz-whatsapp` function through `?sim=1`,
+which swaps exactly two things — where a photograph comes from, where a reply
+goes — and runs every other line: screening, parsing, deduplication, rate
+limiting, storage, the moderation queue. A simulator that reimplemented the
+agent would only ever test the simulator.
+
+Gated by `SIM_TOKEN` (a function secret; unset means the console is off).
+The token is typed into the page and kept in that browser — never in the repo,
+which is public. Its photographs land in the real archive marked
+`tmz_submission.is_test`, and the console's Reset button removes them.
+
+What it found on its first runs, all now fixed: replies defaulted to English
+in three separate places (a failed parse, an unparseable answer, and a
+photograph with no caption); `tmz_sim_reset` matched `submitter_ref` exactly
+and so missed every photograph someone had answered a question about; and the
+agent had nowhere to remember a sender's language before their first
+photograph — now `tmz_wa_contact`. FR/DE/ES replies were added alongside
+EN/HE/RU.
+
+**Open, needs the key owner:** the Gemini key returns **429 — quota exceeded**
+intermittently. The fallbacks behave correctly (the photograph is accepted and
+held for a human, marked "screening unavailable"), but nothing is being
+screened while that lasts.
+
 ### 🟨 Phase 6 — Campaign dashboard
 
 - [x] Coverage grid — every community × every year it was open, one cell each. 903 cells, all empty today; that is the campaign's real starting line.

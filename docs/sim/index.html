@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>קונסולת בדיקה — סוכן הוואטסאפ</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600&display=swap">
+<style>
+:root{
+  --wa-teal:#075e54; --wa-teal-d:#054c44; --wa-green:#25d366;
+  --paper:#e9e2d9; --in:#ffffff; --out:#dcf8c6;
+  --ink:#111b21; --dim:#667781; --line:#d8d2c8;
+  --panel:#0f1720; --panel-ink:#c8d3de; --panel-dim:#6b7c8d;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.5 Heebo,system-ui,sans-serif;color:var(--ink);
+  background:#0b1014;height:100vh;overflow:hidden}
+.wrap{display:grid;grid-template-columns:minmax(0,1fr) 400px;height:100vh}
+@media(max-width:980px){.wrap{grid-template-columns:1fr;grid-template-rows:1fr auto}}
+
+/* ---- banner ---- */
+.warn{position:absolute;inset-inline:0;top:0;z-index:5;background:#b45309;color:#fff;
+  font-size:12px;font-weight:500;text-align:center;padding:5px 12px;letter-spacing:.2px}
+
+/* ---- chat ---- */
+.chat{display:flex;flex-direction:column;min-width:0;background:var(--paper);
+  background-image:radial-gradient(circle at 1px 1px,rgba(0,0,0,.045) 1px,transparent 0);
+  background-size:22px 22px;padding-top:26px}
+.bar{display:flex;align-items:center;gap:12px;background:var(--wa-teal);color:#fff;
+  padding:9px 14px;flex:0 0 auto;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.ava{width:38px;height:38px;border-radius:50%;background:var(--wa-teal-d);flex:0 0 auto;
+  display:grid;place-items:center;overflow:hidden}
+.ava img{width:100%;height:100%;object-fit:contain;padding:6px;filter:brightness(3)}
+.bar b{font-size:15px;font-weight:500;display:block;line-height:1.2}
+.bar span{font-size:12px;opacity:.75}
+.bar .sp{margin-inline-start:auto;display:flex;gap:8px}
+.bar button{background:rgba(255,255,255,.13);border:0;color:#fff;font:inherit;font-size:12px;
+  padding:5px 11px;border-radius:14px;cursor:pointer}
+.bar button:hover{background:rgba(255,255,255,.24)}
+
+.feed{flex:1;overflow-y:auto;padding:14px 6%;display:flex;flex-direction:column;gap:3px}
+.msg{max-width:min(78%,520px);padding:6px 9px 5px;border-radius:8px;position:relative;
+  box-shadow:0 1px .5px rgba(0,0,0,.13);white-space:pre-wrap;word-wrap:break-word;font-size:14.5px}
+.msg.in{background:var(--in);align-self:flex-start;border-start-start-radius:0}
+.msg.out{background:var(--out);align-self:flex-end;border-start-end-radius:0}
+.msg + .msg{margin-top:2px}
+.msg.in + .msg.out,.msg.out + .msg.in{margin-top:10px}
+.msg img{display:block;border-radius:5px;max-width:100%;margin-bottom:4px}
+.t{font-size:10.5px;color:var(--dim);float:inline-end;margin:6px 0 -2px 0;
+  margin-inline-start:9px;position:relative;top:3px}
+.tick{color:#4fc3f7;font-size:11px}
+.sys{align-self:center;background:#fdf3d4;color:#7a6320;font-size:12px;padding:5px 12px;
+  border-radius:8px;box-shadow:0 1px .5px rgba(0,0,0,.1);max-width:80%;text-align:center}
+.typing{align-self:flex-start;background:var(--in);border-radius:8px;border-start-start-radius:0;
+  padding:11px 14px;box-shadow:0 1px .5px rgba(0,0,0,.13);display:flex;gap:4px}
+.typing i{width:7px;height:7px;border-radius:50%;background:#9aa5ad;animation:bob 1.2s infinite}
+.typing i:nth-child(2){animation-delay:.18s}.typing i:nth-child(3){animation-delay:.36s}
+@keyframes bob{0%,60%,100%{opacity:.35;transform:translateY(0)}30%{opacity:1;transform:translateY(-4px)}}
+
+/* ---- composer ---- */
+.comp{flex:0 0 auto;padding:8px 12px 10px;display:flex;gap:8px;align-items:flex-end;background:#f0f0f0}
+.comp .box{flex:1;background:#fff;border-radius:21px;padding:7px 14px;display:flex;
+  align-items:flex-end;gap:8px;min-height:42px}
+.comp textarea{flex:1;border:0;outline:0;resize:none;font:inherit;font-size:15px;
+  max-height:110px;line-height:1.45;padding:2px 0;background:none}
+.icon{background:none;border:0;cursor:pointer;color:#54656f;padding:4px;line-height:0}
+.icon:hover{color:var(--wa-teal)}
+.send{width:42px;height:42px;border-radius:50%;background:var(--wa-teal);color:#fff;border:0;
+  cursor:pointer;display:grid;place-items:center;flex:0 0 auto}
+.send:disabled{opacity:.45;cursor:default}
+.pending{padding:6px 12px 0;display:flex;align-items:center;gap:10px;background:#f0f0f0;font-size:12.5px;color:#54656f}
+.pending img{width:44px;height:44px;object-fit:cover;border-radius:5px}
+.pending button{background:none;border:0;color:#c0392b;cursor:pointer;font:inherit;font-size:12.5px}
+
+/* ---- inspector ---- */
+.side{background:var(--panel);color:var(--panel-ink);display:flex;flex-direction:column;
+  min-width:0;border-inline-start:1px solid #1e2a35;padding-top:26px}
+@media(max-width:980px){.side{max-height:44vh;border:0;border-top:1px solid #1e2a35;padding-top:0}}
+.side h2{margin:0;padding:13px 16px;font-size:12px;font-weight:600;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--panel-dim);border-bottom:1px solid #1c2731;
+  display:flex;justify-content:space-between;align-items:center}
+.side h2 button{background:none;border:1px solid #2b3944;color:var(--panel-dim);font:inherit;
+  font-size:11px;padding:3px 9px;border-radius:5px;cursor:pointer;letter-spacing:0;text-transform:none}
+.side h2 button:hover{color:#fff;border-color:#456}
+.setup{padding:13px 16px;border-bottom:1px solid #1c2731;display:grid;gap:9px}
+.setup label{font-size:11px;color:var(--panel-dim);display:block;margin-bottom:3px}
+.setup input{width:100%;background:#080d12;border:1px solid #263340;color:#e6edf3;
+  border-radius:6px;padding:7px 9px;font:inherit;font-size:13px;direction:ltr;text-align:left}
+.setup input:focus{outline:0;border-color:#3d5566}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.trace{flex:1;overflow-y:auto;padding:6px 0 20px}
+.step{border-bottom:1px solid #161f28;padding:9px 16px}
+.step b{font-size:11.5px;font-weight:600;color:#8fb3cc;letter-spacing:.04em;
+  display:flex;justify-content:space-between;direction:ltr}
+.step b em{font-style:normal;color:#4c5c6b;font-weight:400}
+.step pre{margin:6px 0 0;font:11.5px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;
+  color:#a9bccb;white-space:pre-wrap;word-break:break-word;direction:ltr;text-align:left}
+.step.bad b{color:#f0836a}
+.step.ok b{color:#79c98d}
+.empty{padding:26px 16px;color:#4c5c6b;font-size:13px;text-align:center;line-height:1.7}
+.side a{color:#7fb0d0}
+</style>
+</head>
+<body>
+
+<div class="warn">קונסולת בדיקה — לא וואטסאפ אמיתי. ההודעות נכנסות לארכיון האמיתי ומסומנות כבדיקה.</div>
+
+<div class="wrap">
+  <section class="chat">
+    <div class="bar">
+      <div class="ava"><img src="../tmz-mark.png" alt=""></div>
+      <div>
+        <b>תורה מציון 30</b>
+        <span id="status">מקוון</span>
+      </div>
+      <div class="sp">
+        <button id="reset" title="מוחק מהארכיון את כל תמונות הבדיקה שנשלחו מהמספר הזה">ניקוי</button>
+      </div>
+    </div>
+
+    <div class="feed" id="feed"></div>
+
+    <div class="pending" id="pending" hidden>
+      <img id="pendingImg" alt="">
+      <span id="pendingName"></span>
+      <button id="pendingDrop">הסרה</button>
+    </div>
+
+    <div class="comp">
+      <button class="icon" id="attach" title="צירוף תמונה">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 6v11.5a4 4 0 0 1-8 0V5a2.5 2.5 0 0 1 5 0v10.5a1 1 0 0 1-2 0V6H10v9.5a2.5 2.5 0 0 0 5 0V5a4 4 0 0 0-8 0v12.5a5.5 5.5 0 0 0 11 0V6h-1.5Z"/></svg>
+      </button>
+      <input type="file" id="file" accept="image/*" hidden>
+      <div class="box">
+        <textarea id="text" rows="1" placeholder="הודעה"></textarea>
+      </div>
+      <button class="send" id="send" title="שליחה">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+      </button>
+    </div>
+  </section>
+
+  <aside class="side">
+    <h2>מה הסוכן עשה <button id="clearTrace">ניקוי</button></h2>
+    <div class="setup">
+      <div>
+        <label for="tok">SIM_TOKEN</label>
+        <input id="tok" type="password" placeholder="מ־.env.supabase" autocomplete="off">
+      </div>
+      <div class="row2">
+        <div><label for="from">מספר שולח</label><input id="from" value="15550000001"></div>
+        <div><label for="name">שם שולח</label><input id="name" value="Test sender"></div>
+      </div>
+    </div>
+    <div class="trace" id="trace">
+      <p class="empty">כל הודעה תציג כאן בדיוק מה הסוכן עשה — מה הסינון החזיר, מה נותח מהטקסט, ומה נכתב לדאטהבייס.</p>
+    </div>
+  </aside>
+</div>
+
+<script>
+/* A WhatsApp-shaped front end for the real tmz-whatsapp edge function.
+   It sends to ?sim=1, which swaps the two transport edges — where a photograph
+   comes from and where a reply goes — and runs every other line of the live
+   webhook: screening, parsing, deduplication, rate limiting, storage, the
+   moderation queue. If something works here it works on the real number, and
+   if it breaks here it was already broken. */
+
+const FN = 'https://xuoxkmwtdascazutoaxs.supabase.co/functions/v1/tmz-whatsapp';
+
+const $ = id => document.getElementById(id);
+const feed = $('feed'), trace = $('trace');
+
+/* The token is a shared secret and this page is served from a public origin,
+   so it is never in the source — it is typed once and kept in this browser. */
+const remember = (k, el) => {
+  const v = localStorage.getItem('tmzsim.' + k);
+  if (v !== null) el.value = v;
+  el.addEventListener('change', () => localStorage.setItem('tmzsim.' + k, el.value));
+};
+['tok', 'from', 'name'].forEach(k => remember(k, $(k)));
+
+const clock = () => new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const scroll = () => { feed.scrollTop = feed.scrollHeight; };
+
+function bubble(side, html, tick) {
+  const d = document.createElement('div');
+  d.className = 'msg ' + side;
+  d.innerHTML = html + `<span class="t">${clock()}${tick ? ' <span class="tick">✓✓</span>' : ''}</span>`;
+  feed.appendChild(d); scroll();
+  return d;
+}
+function system(text) {
+  const d = document.createElement('div');
+  d.className = 'sys'; d.textContent = text;
+  feed.appendChild(d); scroll();
+}
+function typing(on) {
+  let el = feed.querySelector('.typing');
+  if (!on) { el?.remove(); return; }
+  if (el) return;
+  el = document.createElement('div');
+  el.className = 'typing'; el.innerHTML = '<i></i><i></i><i></i>';
+  feed.appendChild(el); scroll();
+}
+
+/* ---- the inspector ------------------------------------------------------- */
+
+const GOOD = ['stored', 'attached', 'screened'];
+const BAD = ['failed', 'rate limited'];
+
+function showTrace(steps, err) {
+  if (trace.querySelector('.empty')) trace.innerHTML = '';
+  for (const s of steps) {
+    const el = document.createElement('div');
+    el.className = 'step' + (BAD.includes(s.step) ? ' bad' : GOOD.includes(s.step) ? ' ok' : '');
+    el.innerHTML = `<b>${esc(s.step)}<em>${clock()}</em></b>
+      <pre>${esc(JSON.stringify(s.detail, null, 1))}</pre>`;
+    trace.appendChild(el);
+  }
+  if (err) {
+    const el = document.createElement('div');
+    el.className = 'step bad';
+    el.innerHTML = `<b>error<em>${clock()}</em></b><pre>${esc(err)}</pre>`;
+    trace.appendChild(el);
+  }
+  trace.scrollTop = trace.scrollHeight;
+}
+$('clearTrace').onclick = () => {
+  trace.innerHTML = '<p class="empty">נוקה.</p>';
+};
+
+/* ---- the photograph ------------------------------------------------------ */
+
+/* Downscaled before sending for the same reason the contribute page does it:
+   a phone camera produces something no JSON request should carry, and the
+   screening model gains nothing from the extra pixels. */
+const MAX_EDGE = 1600;
+
+function prepare(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('not an image')); };
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, MAX_EDGE / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * scale);
+      c.height = Math.round(img.height * scale);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      const data = c.toDataURL('image/jpeg', 0.86);
+      resolve({ data, mime: 'image/jpeg', name: file.name,
+                w: c.width, h: c.height, scaled: scale < 1 });
+    };
+    img.src = url;
+  });
+}
+
+let held = null;
+$('attach').onclick = () => $('file').click();
+$('file').onchange = async e => {
+  const f = e.target.files[0];
+  e.target.value = '';
+  if (!f) return;
+  try {
+    held = await prepare(f);
+    $('pendingImg').src = held.data;
+    $('pendingName').textContent =
+      `${held.name} · ${held.w}×${held.h}${held.scaled ? ' (הוקטנה)' : ''}`;
+    $('pending').hidden = false;
+    $('text').placeholder = 'כיתוב (לא חובה)';
+    $('text').focus();
+  } catch (err) { system('לא הצלחתי לקרוא את הקובץ: ' + err.message); }
+};
+$('pendingDrop').onclick = () => {
+  held = null; $('pending').hidden = true; $('text').placeholder = 'הודעה';
+};
+
+/* ---- sending ------------------------------------------------------------- */
+
+async function call(params, body) {
+  const res = await fetch(`${FN}?${params}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-tmz-sim-token': $('tok').value.trim() },
+    body: JSON.stringify(body)
+  });
+  const out = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+  if (!res.ok) throw new Error(out.error || `HTTP ${res.status}`);
+  return out;
+}
+
+let busy = false;
+async function send() {
+  if (busy) return;
+  const text = $('text').value.trim();
+  if (!held && !text) return;
+  if (!$('tok').value.trim()) { system('צריך להזין SIM_TOKEN בצד.'); return; }
+
+  busy = true; $('send').disabled = true;
+  const img = held, caption = text;
+
+  if (img) {
+    bubble('out', `<img src="${img.data}" alt="">${caption ? esc(caption) : ''}`, true);
+    held = null; $('pending').hidden = true; $('text').placeholder = 'הודעה';
+  } else {
+    bubble('out', esc(text), true);
+  }
+  $('text').value = ''; $('text').style.height = 'auto';
+
+  typing(true);
+  $('status').textContent = 'מקליד…';
+  try {
+    const body = {
+      from: $('from').value.trim(), name: $('name').value.trim(),
+      type: img ? 'image' : 'text'
+    };
+    if (img) { body.image = { data: img.data, mime: img.mime }; body.caption = caption || null; }
+    else body.text = text;
+
+    const out = await call('sim=1', body);
+    typing(false);
+    $('status').textContent = 'מקוון';
+    showTrace(out.trace || [], out.error);
+    if (!out.replies?.length && !out.error) system('הסוכן לא ענה כלום.');
+    for (const r of out.replies || []) bubble('in', esc(r));
+    if (out.error) system('הסוכן נכשל: ' + out.error);
+  } catch (err) {
+    typing(false);
+    $('status').textContent = 'מקוון';
+    system(err.message === 'bad token' ? 'ה־SIM_TOKEN שגוי.' : 'שגיאה: ' + err.message);
+    showTrace([], err.message);
+  } finally {
+    busy = false; $('send').disabled = false; $('text').focus();
+  }
+}
+
+$('send').onclick = send;
+$('text').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+});
+$('text').addEventListener('input', e => {
+  e.target.style.height = 'auto';
+  e.target.style.height = Math.min(e.target.scrollHeight, 110) + 'px';
+});
+
+$('reset').onclick = async () => {
+  if (!$('tok').value.trim()) { system('צריך להזין SIM_TOKEN בצד.'); return; }
+  if (!confirm('למחוק מהארכיון את כל תמונות הבדיקה שנשלחו מהמספר הזה?')) return;
+  try {
+    const out = await call('sim=reset', { from: $('from').value.trim() });
+    feed.innerHTML = '';
+    system(`נמחקו ${out.reset.photos} תמונות ו־${out.reset.submissions} רשומות שליחה.`);
+  } catch (err) { system('הניקוי נכשל: ' + err.message); }
+};
+
+system('שיחה חדשה. שלחו הודעה או צרפו תמונה — הסוכן שעונה הוא בדיוק זה שיענה על המספר האמיתי.');
+$('text').focus();
+</script>
+</body>
+</html>
