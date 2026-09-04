@@ -248,3 +248,5 @@ table.tbl td.actions .del:hover { color: var(--danger); }
 /* A locale a record does not need. Distinct from both filled and missing:
    grey says settled, not unfinished. */
 .cov .cell.na { background: var(--line2); opacity: .45; }
+
+.sec-h { font-family: var(--serif); font-size:20px; margin:34px 0 4px; color: var(--ivory); }

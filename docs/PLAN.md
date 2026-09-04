@@ -6,8 +6,16 @@ new session to know where things stand.
 **What this is:** a photo archive for Torah MiTzion's 30th anniversary (1996–2026),
 gathering photographs from every community across all thirty years.
 
-**Stack:** Supabase (Postgres, Auth, Storage) · Railway (web + worker) · Redis
-(cache, queue, rate limit) · Gemini (moderation, metadata) · HookMyApp (WhatsApp)
+**Stack as built:** Supabase (Postgres, Auth, Storage, Edge Functions) ·
+Gemini (screening, metadata) · HookMyApp (WhatsApp) · GitHub Pages (the static site).
+
+**Two deliberate departures from the stated stack.** *Railway* is not used: both
+server-side pieces are short request/response handlers that live next to the
+database and storage, and neither is a process that has to stay up, so a second
+deploy target would buy nothing. *Redis* is not used: the rate limiter is one
+Postgres function, and swapping its body is the whole change if traffic ever
+needs something faster. Both are reversible in an afternoon; neither is a
+missing feature.
 
 ---
 
@@ -54,7 +62,7 @@ These are locked. Do not relitigate without the user.
 **Known limits of the mockup:** all data is invented and generated client-side;
 no persistence; the contribute form does not submit; no auth; no back office.
 
-### 🟨 Phase 2 — Backend and database ← **CURRENT**
+### ✅ Phase 2 — Backend and database (done)
 
 Detailed plan: [`superpowers/plans/2026-09-03-backend-schema.md`](superpowers/plans/2026-09-03-backend-schema.md)
 
@@ -92,7 +100,7 @@ role-scoped `ALTER DEFAULT PRIVILEGES` so future `tmz_` tables in this session
 don't reinherit it. The other apps' own tables and their default-privilege
 rule were left untouched — out of scope and not this project's to fix.
 
-### 🟨 Phase 3 — Back office (CMS) ← **CURRENT**
+### ✅ Phase 3 — Back office (CMS) (done)
 
 Static app at `/docs/admin/`, no build step. Talks to Supabase directly with
 the anon key; RLS does the enforcement. `hagai.rettig@gmail.com` is auto-promoted
@@ -107,11 +115,11 @@ them.
 - [x] CRUD for people (with per-locale display names)
 - [x] Translation coverage — six coloured cells per row, missing locales flagged
 - [x] Moderation queue (approve / reject a pending photograph)
-- [ ] Tenure editor on the person page (add/remove community assignments)
-- [ ] Photo detail: caption, event type, people tagging
-- [ ] Bulk translation view — "everything untranslated in Russian"
+- [x] Tenure editor on the person page (add/remove community assignments, with household attachment)
+- [x] Photo detail: preview, caption in each of the six languages, date taken, occasion, place, people tagging, and the screening record with a Take down button
+- [x] Bulk translation view — per language, across communities, occasions, people and yeshivot, and it distinguishes *missing* from *not needed*
 
-### 🟨 Phase 4 — Upload landing page ← **CURRENT**
+### ✅ Phase 4 — Upload landing page (done)
 
 Live at `#/contribute`. The browser prepares the image (preview, downscale over
 2200px, dHash) and posts it to the `tmz-upload` edge function, which holds the
@@ -125,15 +133,16 @@ target. Railway still earns its place in phase 5, where the WhatsApp webhook
 has to stay up.
 
 - [x] Public upload with metadata capture (community, year, people, occasion, contributor)
+- [x] **Runs the same pipeline as the WhatsApp agent** (`_shared/imagesafe.ts`, `_shared/screen.ts`). It used to trust the MIME type the sender declared and store their bytes verbatim, so a POST claiming `image/jpeg` could put anything in the bucket and a reviewer clicking Approve would copy it to the public bucket untouched.
 - [x] Gemini screening — nudity, violence, advertising, irrelevance; also guesses decade, setting, people count and event type to save the reviewer work
 - [x] Duplicate detection — dHash client-side, Hamming distance in Postgres, caught before storage
 - [x] Rate limiting — 20/hour per hashed IP
 - [x] **Gemini key set** (shared with `gifted_app` — disconnecting one breaks the other). Model is `gemini-3.6-flash`: `gemini-2.5-flash` answers 404 for keys issued after its retirement, and the API's own error names the replacement.
 - [x] Prompt calibrated against both ends — a grainy faded scan passes, an advertisement is refused with reasons. **This matters:** the first prompt refused a picture for not being a "real photograph", which would have rejected exactly the 1996-era scans and photocopies the archive most needs.
-- [ ] Redis — deferred. The limiter is one Postgres function; swapping the body is the whole change, and a table is honest until there is traffic that needs faster.
-- [ ] Image derivatives into `tmz-photo-public` on approval (originals stay private)
+- [x] Rate limiting — 20/hour per hashed IP on the web, 40/hour per sender on WhatsApp. In Postgres, not Redis; see the stack note at the top.
+- [x] Image derivatives — every file is decoded and re-encoded on arrival; the private bucket holds the original-resolution copy and the resized one, and only the resized copy is ever published
 
-### 🟨 Phase 5 — WhatsApp collection agent
+### 🟨 Phase 5 — WhatsApp collection agent ← **blocked on connecting the number**
 
 Also an edge function (`tmz-whatsapp`), for the same reason as the upload path:
 HookMyApp forwards a webhook, so this is request/response, not a process that
@@ -145,8 +154,8 @@ POST gets 401, a GET without the verify token gets 403. Both confirmed live.
 - [x] Answers 200 immediately, works in a microtask — a slow Gemini call cannot trigger Meta's retry and duplicate a photograph
 - [x] Gemini screens the image and parses the free-text reply in any language and any order
 - [x] Conversation is thin on purpose: the photograph is accepted first, questions follow. Someone going through a shoebox sends five in a row.
-- [x] Replies in EN/HE/RU; other locales fall back to English
-- [x] Writes straight into the same moderation queue as the upload page
+- [x] Replies in all six languages, and remembers which one a sender writes in (`tmz_wa_contact`), so a photograph with no caption is still answered in their language
+- [x] Writes straight into the same moderation queue as the upload page — and, when screening clears it and the community and year are known, publishes it without one
 - [ ] **Blocked on a human step:** `hookmyapp login` and `hookmyapp channels connect whatsapp` both open a browser flow that cannot be automated. After connecting, set `WEBHOOK_HMAC_SECRET`, `VERIFY_TOKEN`, `WHATSAPP_ACCESS_TOKEN` and `WHATSAPP_PHONE_NUMBER_ID` as function secrets and point the channel webhook at `https://xuoxkmwtdascazutoaxs.supabase.co/functions/v1/tmz-whatsapp`. Until then the function refuses everything, which is the correct default.
 
 
@@ -278,11 +287,12 @@ earlier was a half-takedown by construction. Deletion now goes through the
 Storage API in the two places that can reach it, and SQL keeps only the audit
 note.
 
-### 🟨 Phase 6 — Campaign dashboard
+### ✅ Phase 6 — Campaign dashboard (done)
 
-- [x] Coverage grid — every community × every year it was open, one cell each. 903 cells, all empty today; that is the campaign's real starting line.
+- [x] Coverage grid — every community × every year it was open, one cell each. 472 cells across the real 23 communities, all empty today; that is the campaign's real starting line.
 - [x] Intake metrics by source and status, contributors and auto-rejections over a rolling window
-- [ ] Per-community outreach targets and contributor leaderboard
+- [x] The holes, in words — every community's empty years as readable spans, because "Memphis 2003 has no pics" is the brief's own example and a grid of coloured squares does not say it
+- [x] Contributor leaderboard (`tmz_contributors`, aggregated in the database so no email address reaches the browser)
 
 ---
 

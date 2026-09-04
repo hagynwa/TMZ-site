@@ -38,9 +38,10 @@ const tile = (k, v, cls = '') =>
    year, still has nothing. One cell per community-year, so a gap is a hole you
    can see rather than a number you have to interpret. */
 export async function campaign() {
-  const [cov, intake] = await Promise.all([
+  const [cov, intake, contributors] = await Promise.all([
     sb.rpc('tmz_coverage', { want: 'en' }),
-    sb.rpc('tmz_intake_stats', { days: 30 })
+    sb.rpc('tmz_intake_stats', { days: 30 }),
+    sb.rpc('tmz_contributors', { days: 365, lim: 25 }).catch(() => [])
   ]);
 
   const years = cov.years || [];
@@ -49,6 +50,7 @@ export async function campaign() {
 
   const src = intake.by_source || {};
   const st = intake.by_status || {};
+  const gaps = gapsFrom(rows, years);
 
   const grid = rows.map(r => {
     const cells = years.map(y => {
@@ -98,7 +100,60 @@ export async function campaign() {
         <th class="cv-num">Held</th><th class="cv-num">Empty</th>
       </tr></thead>
       <tbody>${grid}</tbody>
-    </table></div>`;
+    </table></div>
+
+    <h2 class="sec-h">Where the holes are</h2>
+    <p class="dim" style="margin:0 0 14px; font-size:12.5px">
+      The grid above shows this as colour. This is the same thing in words, which is
+      what someone can act on — a name, a year, and somebody to ask.</p>
+    ${gaps.length === 0
+      ? `<div class="empty">No gaps. Every year of every community holds a photograph.</div>`
+      : `<div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>Community</th><th>Missing</th><th class="cv-num">Years</th></tr></thead>
+      <tbody>${gaps.map(g => `<tr>
+        <td>${esc(g.name)}</td>
+        <td class="dim"><span dir="ltr">${esc(g.spans)}</span></td>
+        <td class="cv-num warn">${g.empty}</td>
+      </tr>`).join('')}</tbody></table></div>`}
+
+    <h2 class="sec-h">Who has sent photographs</h2>
+    ${(contributors || []).length === 0
+      ? `<div class="empty">Nobody yet. The campaign has not started collecting.</div>`
+      : `<div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>Contributor</th><th>Route</th><th class="cv-num">Sent</th>
+        <th class="cv-num">On the site</th><th class="cv-num">Waiting</th><th>Last</th></tr></thead>
+      <tbody>${contributors.map(c => `<tr>
+        <td>${esc(c.name)}</td>
+        <td class="dim">${esc(c.source)}</td>
+        <td class="cv-num">${c.sent}</td>
+        <td class="cv-num">${c.on_site}</td>
+        <td class="cv-num ${c.waiting ? 'warn' : ''}">${c.waiting}</td>
+        <td class="dim mono">${new Date(c.last_sent).toISOString().slice(0, 10)}</td>
+      </tr>`).join('')}</tbody></table></div>`}`;
+}
+
+/* "Memphis 2003 has no pics" was the brief's own example of what the dashboard
+   is for, and a grid of coloured squares does not say it. This turns each
+   community's empty years into readable spans — 1996-1999, 2004, 2011-2013 —
+   because a run of consecutive years is one conversation to have, not six. */
+function gapsFrom(rows, years) {
+  return rows.map(r => {
+    const empty = [];
+    for (const y of years) {
+      if (y < r.first || y > r.last) continue;
+      if (!(r.years[String(y)] || 0)) empty.push(y);
+    }
+    const spans = [];
+    for (const y of empty) {
+      const last = spans[spans.length - 1];
+      if (last && y === last[1] + 1) last[1] = y;
+      else spans.push([y, y]);
+    }
+    return {
+      name: r.name, empty: empty.length,
+      spans: spans.map(([a, b]) => a === b ? String(a) : `${a}\u2013${b}`).join(', ')
+    };
+  }).filter(g => g.empty > 0).sort((a, b) => b.empty - a.empty);
 }
 
 /* ---- communities --------------------------------------------------------- */
