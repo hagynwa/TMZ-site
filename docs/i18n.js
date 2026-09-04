@@ -1,6 +1,8 @@
 /* Six languages, one fallback chain: requested locale -> English -> the key itself.
-   That chain is the whole point — with 49 communities and six locales, most fields
-   will be missing most of the time, and the site has to stay usable anyway. */
+   That chain is the whole point: across 23 communities, 231 people and six
+   locales, some fields will always be missing, and the site has to stay usable
+   anyway. Entity names live in the database's *_tr tables and resolve the same
+   way; these are only the interface strings, and they are complete in all six. */
 
 const LANGS = [
   { id: 'en', label: 'EN', name: 'English',  dir: 'ltr' },
@@ -59,7 +61,7 @@ const STRINGS = {
     'yr.child': 'child',
     'yr.emptyNothing': 'We have not recorded who was here either. If you know, tell us.',
     'banner.empty': 'The archive is open and empty. Every photograph is the first of its year.',
-    'banner.demo': 'Showing invented sample data, not the real archive.',
+    'banner.demo': 'The communities and years are real; only the photograph counts are invented.',
     'banner.demoOff': 'Show the real archive',
   },
   he: {
@@ -109,7 +111,7 @@ const STRINGS = {
     'yr.child': 'ילד/ה',
     'yr.emptyNothing': 'גם לא תיעדנו מי היה כאן. אם אתם יודעים, ספרו לנו.',
     'banner.empty': 'הארכיון פתוח וריק. כל תמונה היא הראשונה בשנתה.',
-    'banner.demo': 'מוצגים נתוני דמה מומצאים, לא הארכיון האמיתי.',
+    'banner.demo': 'הקהילות והשנים אמיתיות; רק מספרי התמונות מומצאים.',
     'banner.demoOff': 'להצגת הארכיון האמיתי',
   },
   ru: {
@@ -159,7 +161,7 @@ const STRINGS = {
     'yr.child': 'ребёнок',
     'yr.emptyNothing': 'Мы также не знаем, кто здесь был. Если вы знаете — расскажите нам.',
     'banner.empty': 'Архив открыт и пуст. Каждая фотография — первая в своём году.',
-    'banner.demo': 'Показаны вымышленные данные, а не настоящий архив.',
+    'banner.demo': 'Общины и годы настоящие; вымышлены только числа фотографий.',
     'banner.demoOff': 'Показать настоящий архив',
   },
   fr: {
@@ -209,7 +211,7 @@ const STRINGS = {
     'yr.child': 'enfant',
     'yr.emptyNothing': 'Nous ne savons pas non plus qui était là. Si vous le savez, dites-le nous.',
     'banner.empty': 'Les archives sont ouvertes et vides. Chaque photographie est la première de son année.',
-    'banner.demo': 'Données d’exemple inventées, pas les vraies archives.',
+    'banner.demo': 'Les communautés et les années sont réelles ; seuls les nombres de photographies sont inventés.',
     'banner.demoOff': 'Voir les vraies archives',
   },
   de: {
@@ -259,7 +261,7 @@ const STRINGS = {
     'yr.child': 'Kind',
     'yr.emptyNothing': 'Wir wissen auch nicht, wer hier war. Wenn Sie es wissen, sagen Sie es uns.',
     'banner.empty': 'Das Archiv ist offen und leer. Jede Fotografie ist die erste ihres Jahres.',
-    'banner.demo': 'Erfundene Beispieldaten, nicht das echte Archiv.',
+    'banner.demo': 'Gemeinden und Jahre sind echt; erfunden sind nur die Fotozahlen.',
     'banner.demoOff': 'Echtes Archiv zeigen',
   },
   es: {
@@ -309,7 +311,7 @@ const STRINGS = {
     'yr.child': 'hijo/a',
     'yr.emptyNothing': 'Tampoco sabemos quién estuvo aquí. Si tú lo sabes, cuéntanoslo.',
     'banner.empty': 'El archivo está abierto y vacío. Cada fotografía es la primera de su año.',
-    'banner.demo': 'Datos de ejemplo inventados, no el archivo real.',
+    'banner.demo': 'Las comunidades y los años son reales; solo las cifras de fotografías son inventadas.',
     'banner.demoOff': 'Ver el archivo real',
   }
 };
