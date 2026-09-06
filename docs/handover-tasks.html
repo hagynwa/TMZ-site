@@ -152,6 +152,36 @@ footer{
   margin-top:44px; padding-top:18px; border-top:1px solid var(--rule);
   font-size:13px; color:var(--dim);
 }
+
+/* ---- on paper ----------------------------------------------------------
+   This is a list somebody works through, so it will be printed and passed
+   around. Three things have to change for that: the dark palette must not
+   follow the page onto white paper, a task must not be cut in half across a
+   page break, and the screen's generous margins are the printer's job. */
+@media print{
+  :root{
+    --paper:#FFFFFF; --card:#FFFFFF; --ink:#141A24; --body:#2E3947; --dim:#5A6880;
+    --rule:#C9D0DC; --rule2:#EFF2F6;
+    --gold:#7A5810; --gold-fill:#F6EDD6; --gold-edge:#C9AE6E;
+    --clay:#8A3D28; --clay-fill:#F9EFEB;
+    --green:#1B5A3F; --green-fill:#EAF4EE;
+  }
+  body{background:#fff; font-size:11pt; line-height:1.6}
+  .wrap{max-width:none; padding:0}
+  @page{margin:16mm 14mm}
+
+  .task,.money,.cardnote,.calm,footer{break-inside:avoid; page-break-inside:avoid}
+  h2,h3{break-after:avoid; page-break-after:avoid}
+  .thead{break-after:avoid}
+  h1{font-size:26pt}
+  h2{font-size:16pt; margin-top:26pt}
+  h3{font-size:13pt}
+
+  .task{border:1px solid var(--rule); box-shadow:none}
+  .money{border:1px solid var(--rule)}
+  .chip{border:1px solid var(--rule)}
+  .hand{background:var(--rule2); border:1px solid var(--rule2)}
+}
 </style>
 
 <div class="wrap">
