@@ -1,9 +1,13 @@
 /* WhatsApp intake.
  *
- * HookMyApp forwards Meta's webhook body here verbatim, signed with the
- * channel's HMAC secret. This function verifies that signature, keeps a short
+ * Meta POSTs the webhook here and signs the raw body with the app's App Secret
+ * in X-Hub-Signature-256. This function verifies that signature, keeps a short
  * conversation with the sender in their own language, and pushes photographs
  * into the same moderation queue the upload page uses.
+ *
+ * It talks to Meta directly. There is no messaging provider in the path and no
+ * per-message fee: this agent only ever REPLIES, and a reply inside the 24-hour
+ * window a contributor opened is free with no monthly cap.
  *
  * The conversation is deliberately thin: a photograph is accepted immediately
  * and the questions come afterwards. Someone digging through a shoebox will
@@ -26,9 +30,22 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const GEMINI_KEY = Deno.env.get('GEMINI_API_KEY') ?? '';
 const GEMINI_MODEL = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3.6-flash';
-const HMAC_SECRET = Deno.env.get('WEBHOOK_HMAC_SECRET') ?? '';
+/* The webhook can come straight from Meta or through a forwarding service.
+   Both sign the raw body with HMAC-SHA256 and both send it as `sha256=<hex>`;
+   they differ only in which header carries it and which secret signs it. Meta
+   signs with the App Secret in X-Hub-Signature-256, which is the arrangement
+   this deployment uses — a forwarder is a middleman charging for a hop that
+   Meta already provides. WEBHOOK_HMAC_SECRET is still read so an existing
+   HookMyApp channel keeps working without a redeploy. */
+const WEBHOOK_SECRET = Deno.env.get('META_APP_SECRET')
+  ?? Deno.env.get('WEBHOOK_HMAC_SECRET') ?? '';
+const SIGNATURE_HEADERS = ['x-hub-signature-256', 'x-hookmyapp-signature-256'];
 const VERIFY_TOKEN = Deno.env.get('VERIFY_TOKEN') ?? '';
-const GRAPH_URL = Deno.env.get('META_GRAPH_API_URL') ?? 'https://gateway.hookmyapp.com/meta/v22.0';
+/* Meta's own endpoint by default. This was a forwarding service's gateway, and
+   pointing it back at Meta is the whole of the change — the message shape, the
+   media endpoints and the send call were always Meta's Graph API, because a
+   forwarder is a pass-through. */
+const GRAPH_URL = Deno.env.get('META_GRAPH_API_URL') ?? 'https://graph.facebook.com/v22.0';
 const WA_TOKEN = Deno.env.get('WHATSAPP_ACCESS_TOKEN') ?? '';
 const WA_PHONE_ID = Deno.env.get('WHATSAPP_PHONE_NUMBER_ID') ?? '';
 /* Unset means the test console is off. That is the right default for a
@@ -68,15 +85,15 @@ const rpc = (fn: string, args: unknown) =>
 
 // ---- signature -------------------------------------------------------------
 
-/* HookMyApp re-signs every forwarded webhook with the channel's HMAC secret.
-   Verify over the bytes as received — parsing and re-serialising first is the
-   classic way to break this. */
+/* Verify over the bytes as received. Parsing and re-serialising first is the
+   classic way to break this: JSON round-trips are not byte-identical, and the
+   signature is over bytes. */
 async function verifySignature(raw: string, header: string | null) {
-  if (!HMAC_SECRET) return { ok: false, why: 'WEBHOOK_HMAC_SECRET not configured' };
-  if (!header) return { ok: false, why: 'missing X-HookMyApp-Signature-256' };
+  if (!WEBHOOK_SECRET) return { ok: false, why: 'no webhook secret configured (META_APP_SECRET)' };
+  if (!header) return { ok: false, why: `missing ${SIGNATURE_HEADERS.join(' / ')}` };
 
   const key = await crypto.subtle.importKey(
-    'raw', new TextEncoder().encode(HMAC_SECRET),
+    'raw', new TextEncoder().encode(WEBHOOK_SECRET),
     { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
   );
   const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(raw));
@@ -439,7 +456,9 @@ Deno.serve(async req => {
   if (req.method !== 'POST') return new Response('POST only', { status: 405 });
 
   const raw = await req.text();
-  const check = await verifySignature(raw, req.headers.get('X-HookMyApp-Signature-256'));
+  const signature = SIGNATURE_HEADERS
+    .map(h => req.headers.get(h)).find(Boolean) ?? null;
+  const check = await verifySignature(raw, signature);
   if (!check.ok) {
     console.error('rejected webhook:', check.why);
     return new Response('bad signature', { status: 401 });
