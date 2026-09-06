@@ -22,8 +22,13 @@
  * the same pixels, and asking produced exactly the failure you would expect —
  * a genuine photograph of people refused as "unrelated to community life". The
  * evidence that a photograph belongs is that someone sent it to the
- * organisation's own number and named the community and year. Only the
- * blatantly off-topic is held back, and held is not destroyed.
+ * organisation's own number and named the community and year.
+ *
+ * NOBODY REVIEWS ANY OF THIS. There is no approval queue and no second opinion,
+ * so every call here is final and the sender is told the outcome. The two dials
+ * that decide how strict it is — MIN_CONFIDENCE and REQUIRE_PEOPLE — are the
+ * way to change its mind. That is deliberate: tuning the machine keeps one
+ * consistent standard, where hand-approving around it would not.
  */
 
 export interface Facts {
@@ -46,6 +51,11 @@ export interface Scores {
 }
 
 export interface Verdict {
+  /* 'hold' means ONLY ONE THING now: the screener could not be reached. There
+     is no human downstream, so a hold that nobody can release is a photograph
+     quietly lost — and "the model was unsure" is a judgement the model is
+     entitled to make. It refuses, and the sender is told. An outage is not a
+     judgement, so that alone comes back later. */
   decision: 'publish' | 'hold' | 'reject';
   reasons: string[];
   confidence: number;
@@ -102,8 +112,9 @@ It must be TRUE for an ordinary photograph of people, whatever they are doing
 and wherever they are, including one whose subject you do not recognise.
 
 confidence is how sure you are of safe_to_publish, 0 to 1. Be honest: use a low
-number whenever the picture is unclear or ambiguous. A low number is not a
-failure — it holds the picture back instead of publishing it.`;
+number whenever the picture is unclear or ambiguous. Nobody reviews this, so a
+low number means the photograph is turned away and the sender is told — be
+neither reckless nor timid.`;
 
 const CHALLENGE = `Look at this photograph and do one job: find every reason it would
 be HARMFUL to publish on a public website belonging to a religious Jewish
@@ -200,17 +211,23 @@ export async function screen(b64: string, mime: string, o: ScreenOpts): Promise<
     return out('reject', ['second pass objected', ...objections]);
   }
 
-  if (confidence < o.minConfidence)
-    return out('hold', [`confidence ${confidence} below ${o.minConfidence}`]);
-
+  /* These three were holds, back when a person worked a queue. With nobody
+     downstream a hold is just a slower loss, so they are decisions: the agent
+     declines, the sender hears why, and MIN_CONFIDENCE / REQUIRE_PEOPLE are the
+     dials to turn if it declines too much. Tune the machine; do not hand-approve
+     around it. */
+  /* Scope before uncertainty. A picture with nobody in it also tends to score
+     low on confidence, and "nobody in the picture" is the reason the sender can
+     do something with — reporting the confidence number instead tells them
+     nothing and sounds like an accusation. */
   if (o.requirePeople && !(facts.people_count && facts.people_count > 0))
-    return out('hold', ['nobody in the picture']);
+    return out('reject', ['nobody in the picture']);
 
-  /* Only the emphatic case, and only ever a hold. A photograph that is plainly
-     nothing to do with the archive should not appear on the site by itself;
-     one the model merely does not recognise should not be thrown away. */
+  if (confidence < o.minConfidence)
+    return out('reject', [`confidence ${confidence} below ${o.minConfidence}`]);
+
   if (typeof scores.unrelated === 'number' && scores.unrelated >= 85)
-    return out('hold', [`unrelated scored ${scores.unrelated}`]);
+    return out('reject', [`unrelated scored ${scores.unrelated}`]);
 
   return out('publish', []);
 }

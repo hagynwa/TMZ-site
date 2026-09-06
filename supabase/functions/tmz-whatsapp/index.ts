@@ -62,7 +62,18 @@ const SIM_TOKEN = Deno.env.get('SIM_TOKEN') ?? '';
    be turned without a deploy. AUTO_PUBLISH=off is the stop button: screening
    still runs and still records its verdict, but nothing reaches the site. */
 const AUTO_PUBLISH = (Deno.env.get('AUTO_PUBLISH') ?? 'on') !== 'off';
-const MIN_CONFIDENCE = Number(Deno.env.get('MIN_CONFIDENCE') ?? '0.8');
+/* MEASURED, not chosen. The first default here was 0.8, which sat inside the
+   range ordinary photographs actually produce — benign pictures came back at
+   0.75, 0.85 and 0.88 in testing, so the bar was refusing perfectly good
+   material at the low end of normal.
+
+   The deeper lesson is that this number is not a safety signal. The model's
+   confidence expresses how sure it is about the PICTURE, not about harm: a
+   beach with walruses scored 0.75 because it is unusual, not because it is
+   risky. Harm is caught by safe_to_publish, the challenge pass and the score
+   ceilings, all of which are about harm. This is a backstop for a model that
+   is genuinely lost, so it belongs below the normal range, not inside it. */
+const MIN_CONFIDENCE = Number(Deno.env.get('MIN_CONFIDENCE') ?? '0.6');
 const REQUIRE_PEOPLE = (Deno.env.get('REQUIRE_PEOPLE') ?? 'on') !== 'off';
 
 const CORS = {
@@ -275,6 +286,7 @@ const SAY: Record<string, Record<string, string>> = {
     saved: 'Noted, thank you. Send another whenever you like.',
     rejected: 'Sorry — that image did not pass our automatic check, so it was not added.',
     toobig: 'That photograph is a little too large for us to handle. Please send it as a normal photo rather than a file or document, and it will go straight in.',
+    nopeople: 'Thank you for sending it. This archive collects photographs of people — the communities, the shlichim, the families. A picture with nobody in it is not one we can add, but anything with faces in it is very welcome.',
     dupe: 'We already hold that photograph. Thank you all the same.',
     hello: 'Hello, and thank you for helping build the Torah MiTzion 30 archive. Send a photograph and I will take it from there.',
     nophoto: 'Send a photograph whenever you are ready — I can take several in a row.'
@@ -285,6 +297,7 @@ const SAY: Record<string, Record<string, string>> = {
     saved: 'נרשם, תודה. אפשר לשלוח עוד מתי שתרצו.',
     rejected: 'מצטערים — התמונה לא עברה את הבדיקה האוטומטית ולכן לא נוספה.',
     toobig: 'התמונה גדולה מדי עבורנו. שלחו אותה כתמונה רגילה ולא כקובץ או מסמך, והיא תיכנס מיד.',
+    nopeople: 'תודה ששלחתם. הארכיון אוסף תמונות של אנשים — הקהילות, השליחים, המשפחות. תמונה שאין בה אף אחד לא נכנסת, אבל כל תמונה עם פנים תתקבל בשמחה.',
     dupe: 'התמונה הזו כבר אצלנו. תודה בכל זאת.',
     hello: 'שלום, ותודה שאתם עוזרים לבנות את ארכיון תורה מציון 30. שלחו תמונה ואמשיך מכאן.',
     nophoto: 'שלחו תמונה מתי שנוח לכם — אפשר כמה ברצף.'
@@ -295,6 +308,7 @@ const SAY: Record<string, Record<string, string>> = {
     saved: 'Записано, спасибо. Присылайте ещё в любое время.',
     rejected: 'Извините — изображение не прошло автоматическую проверку и не было добавлено.',
     toobig: 'Фотография слишком большая. Отправьте её как обычное фото, а не как файл или документ, и она сразу попадёт в архив.',
+    nopeople: 'Спасибо, что прислали. Этот архив собирает фотографии людей — общин, шлихим, семей. Снимок без людей мы добавить не можем, но любой снимок с лицами очень ждём.',
     dupe: 'Эта фотография у нас уже есть. Спасибо в любом случае.',
     hello: 'Здравствуйте, и спасибо, что помогаете собрать архив «Тора МиЦион 30». Пришлите фотографию, дальше я всё сделаю.',
     nophoto: 'Присылайте фотографию, когда будет удобно — можно несколько подряд.'
@@ -305,6 +319,7 @@ const SAY: Record<string, Record<string, string>> = {
     saved: 'Noté, merci. Envoyez-en d’autres quand vous voulez.',
     rejected: 'Désolé — cette image n’a pas passé notre vérification automatique et n’a pas été ajoutée.',
     toobig: 'Cette photographie est un peu trop lourde pour nous. Envoyez-la comme photo normale plutôt que comme fichier, et elle sera ajoutée aussitôt.',
+    nopeople: 'Merci de nous l’avoir envoyée. Ces archives rassemblent des photographies de personnes — les communautés, les shlichim, les familles. Une image sans personne ne peut pas être ajoutée, mais tout cliché avec des visages est le bienvenu.',
     dupe: 'Nous avons déjà cette photographie. Merci quand même.',
     hello: 'Bonjour, et merci de nous aider à constituer les archives Torah MiTzion 30. Envoyez une photographie et je m’occupe du reste.',
     nophoto: 'Envoyez une photographie quand vous voulez — je peux en recevoir plusieurs à la suite.'
@@ -315,6 +330,7 @@ const SAY: Record<string, Record<string, string>> = {
     saved: 'Notiert, danke. Schicken Sie gerne weitere.',
     rejected: 'Leider hat dieses Bild unsere automatische Prüfung nicht bestanden und wurde nicht aufgenommen.',
     toobig: 'Dieses Foto ist etwas zu groß für uns. Schicken Sie es als normales Bild und nicht als Datei, dann wird es sofort aufgenommen.',
+    nopeople: 'Danke fürs Schicken. Dieses Archiv sammelt Fotos von Menschen — den Gemeinden, den Schlichim, den Familien. Ein Bild ohne Personen können wir nicht aufnehmen, aber jedes mit Gesichtern ist sehr willkommen.',
     dupe: 'Dieses Foto haben wir bereits. Trotzdem vielen Dank.',
     hello: 'Hallo, und danke, dass Sie beim Aufbau des Torah-MiTzion-30-Archivs helfen. Schicken Sie ein Foto, den Rest übernehme ich.',
     nophoto: 'Schicken Sie ein Foto, wann immer Sie mögen — auch mehrere hintereinander.'
@@ -325,6 +341,7 @@ const SAY: Record<string, Record<string, string>> = {
     saved: 'Anotado, gracias. Envíe más cuando quiera.',
     rejected: 'Lo sentimos — esa imagen no pasó nuestra verificación automática y no fue añadida.',
     toobig: 'Esa fotografía es demasiado grande para nosotros. Envíela como foto normal y no como archivo, y entrará enseguida.',
+    nopeople: 'Gracias por enviarla. Este archivo reúne fotografías de personas — las comunidades, los shlijim, las familias. Una imagen sin nadie no podemos añadirla, pero cualquiera con rostros es muy bienvenida.',
     dupe: 'Ya tenemos esa fotografía. Gracias de todos modos.',
     hello: 'Hola, y gracias por ayudarnos a construir el archivo Torah MiTzion 30. Envíe una fotografía y yo me encargo del resto.',
     nophoto: 'Envíe una fotografía cuando le venga bien — puedo recibir varias seguidas.'
@@ -443,7 +460,7 @@ async function handleSim(req: Request, url: URL) {
   try {
     /* Awaited, not queued: the console needs the answer in the response. The
        real webhook must still return 200 immediately or Meta retries. */
-    await handle(metaEnvelope(body), ch);
+    await handleAndDrain(metaEnvelope(body), ch);
   } catch (e) {
     return json({ replies, trace, error: String(e) }, 200);
   }
@@ -479,9 +496,28 @@ Deno.serve(async req => {
   // Always 200 quickly; Meta retries anything else, and a retry storm on a
   // slow Gemini call would duplicate photographs.
   const body = JSON.parse(raw);
-  queueMicrotask(() => handle(body, liveChannel).catch(e => console.error('handler', e)));
+  queueMicrotask(() => handleAndDrain(body, liveChannel).catch(e => console.error('handler', e)));
   return new Response('ok', { status: 200 });
 });
+
+/* Anything the screener could not answer for earlier gets another chance now.
+   No scheduler and no second service: every message that arrives is a chance
+   to drain the backlog, and a backlog only matters when messages are arriving.
+
+   It sits OUT HERE rather than at the end of the photograph branch because
+   handle() returns early in half a dozen places — a duplicate, a rate limit, a
+   plain "hello" — and the drain should not depend on which. Getting that wrong
+   is exactly why the first version never ran: the commonest follow-up message
+   is a text, and the text branch was the one place it was missing. */
+async function handleAndDrain(body: any, ch: Channel) {
+  try {
+    await handle(body, ch);
+  } finally {
+    if (!ch.forceVerdict) {
+      try { await drainBacklog(ch); } catch (e) { console.error('drain', e); }
+    }
+  }
+}
 
 async function handle(body: any, ch: Channel) {
   const value = body?.entry?.[0]?.changes?.[0]?.value;
@@ -694,6 +730,9 @@ async function handle(body: any, ch: Channel) {
       venue: verdict.facts.setting || null,
       status: verdict.decision === 'reject' ? 'rejected' : 'pending',
       agent_decision: verdict.decision,
+      /* A hold can only mean the screener was unreachable, so it is the one
+         thing worth coming back to. */
+      needs_rescreen: verdict.decision === 'hold',
       source: 'whatsapp', submission_id: submission.id, submitter_ref: waId
     }])
   });
@@ -725,8 +764,14 @@ async function handle(body: any, ch: Channel) {
 
   if (verdict.decision === 'reject') {
     ch.trace('rejected', { photo_id: photo.id, reasons: verdict.reasons });
-    await strike(waId, ch.isTest);
-    await ch.reply(from, say(lang, 'rejected'));
+    /* "Nobody in the picture" is a refusal about SCOPE, not about content, and
+       must not be dressed as one. A photograph of a beit midrash, a sefer, a
+       building — the sender has done nothing wrong and there is no human to
+       appeal to, so the reply says what the archive collects instead. It is
+       also not a strike. */
+    const scope = verdict.reasons.some(r => r.startsWith('nobody in the picture'));
+    if (!scope) await strike(waId, ch.isTest);
+    await ch.reply(from, say(lang, scope ? 'nopeople' : 'rejected'));
     return;
   }
 
@@ -736,6 +781,83 @@ async function handle(body: any, ch: Channel) {
     decision: verdict.decision
   });
   await ch.reply(from, say(lang, live ? 'published' : 'got'));
+}
+
+/* ---- the backlog ---------------------------------------------------------- */
+
+const RESCREEN_PER_MESSAGE = 3;
+const RESCREEN_MAX_ATTEMPTS = 5;
+
+async function drainBacklog(ch: Channel) {
+  if (!GEMINI_KEY) return;
+  let waiting;
+  try {
+    waiting = await pg(
+      `/tmz_photo?select=id,storage_path,community_id,year,rescreen_attempts` +
+      `&needs_rescreen=is.true&rescreen_attempts=lt.${RESCREEN_MAX_ATTEMPTS}` +
+      `&order=created_at.asc&limit=${RESCREEN_PER_MESSAGE}`);
+  } catch (e) { console.error('backlog', e); return; }
+  if (!waiting?.length) return;
+
+  ch.trace('backlog', { waiting: waiting.length });
+  for (const p of waiting) {
+    try { await rescreen(p, ch); }
+    catch (e) { console.error('rescreen', p.id, e); }
+  }
+}
+
+/* The same judgement the photograph would have had on arrival, made now that
+   the screener is answering. The bytes come back from the private bucket — the
+   sanitised master, so nothing unsafe is being re-read. */
+async function rescreen(p: any, ch: Channel) {
+  const res = await fetch(
+    `${SUPABASE_URL}/storage/v1/object/tmz-photo-originals/${p.storage_path}`,
+    { headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` } });
+  if (!res.ok) throw new Error(`fetch master ${res.status}`);
+  const bytes = new Uint8Array(await res.arrayBuffer());
+
+  let verdict: Verdict;
+  try {
+    verdict = await screen(toBase64(bytes), 'image/jpeg', {
+      model: GEMINI_MODEL, key: GEMINI_KEY,
+      minConfidence: MIN_CONFIDENCE, requirePeople: REQUIRE_PEOPLE
+    });
+  } catch (e) {
+    /* Still unreachable. Count the attempt and leave it for next time; after
+       RESCREEN_MAX_ATTEMPTS it stops being retried and shows in the backlog
+       view as one the screener never answered for. */
+    await pg(`/tmz_photo?id=eq.${p.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ rescreen_attempts: (p.rescreen_attempts ?? 0) + 1 })
+    });
+    ch.trace('rescreen deferred', { photo_id: p.id, attempts: (p.rescreen_attempts ?? 0) + 1 });
+    return;
+  }
+
+  const decided = verdict.decision === 'hold' ? 'reject' : verdict.decision;
+  await pg(`/tmz_photo?id=eq.${p.id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      agent_decision: decided,
+      needs_rescreen: false,
+      rescreen_attempts: (p.rescreen_attempts ?? 0) + 1,
+      status: decided === 'reject' ? 'rejected' : 'pending',
+      event_type_id: verdict.facts.event_type || null,
+      venue: verdict.facts.setting || null
+    })
+  });
+  await pg('/tmz_moderation', {
+    method: 'POST',
+    body: JSON.stringify([{
+      photo_id: p.id, model: GEMINI_MODEL, pass: 'final', decision: decided,
+      verdict: decided === 'reject' ? 'rejected' : 'pending',
+      scores: verdict.scores ?? {},
+      reasons: ['screened on a later attempt', ...(verdict.reasons ?? [])]
+    }])
+  });
+
+  const live = decided === 'publish' ? await publishIfReady(p.id, ch) : false;
+  ch.trace('rescreened', { photo_id: p.id, decision: decided, published: live });
 }
 
 /* ---- placement ----------------------------------------------------------- */

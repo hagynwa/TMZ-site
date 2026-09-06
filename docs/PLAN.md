@@ -355,10 +355,16 @@ and *not needed*, which was manufacturing 693 phantom tasks.
 
 **Still open and needing a person:** the WhatsApp number, and the Gemini quota.
 
-## Open questions
+## Settled since
 
-| Question | Blocks | Status |
-|----------|--------|--------|
+| Question | Answer |
+|----------|--------|
+| Does the Hebrew timeline run right-to-left? | **No.** Left to right in every language. A number axis is not prose — 1996 is on the left of every chart in the world, and a Hebrew reader expects that too. The two `[dir="rtl"] … row-reverse` rules that mirrored the year band and the year rail are gone; the chrome still flips, the years do not. |
+| Who moderates? | **Nobody.** There is no approval step and no queue. The agent publishes or refuses and tells the sender which. The Publish button is gone from the back office; the only action left on a photograph is taking it down. When the agent is too strict or too loose, the fix is `MIN_CONFIDENCE` and `REQUIRE_PEOPLE` — one consistent standard, rather than a button applying a different one to a single picture. |
+| Is there an official reversed/mono Torah MiTzion logo? | Still **waiting on client**. Cosmetic. |
+| WhatsApp number — new or existing? | Still **waiting on client**, and now the first question of the handover: see [`MIGRATION.md`](MIGRATION.md). |
+
+----------|--------|--------|
 | Does the Hebrew timeline run right-to-left (oldest on the right)? | Phase 3 UI | **Waiting on client** |
 | Is there an official reversed/mono Torah MiTzion logo? | Polish | **Waiting on client** |
 | Who moderates? One central team or per-community editors? | Phase 3 roles | **Waiting on client** |

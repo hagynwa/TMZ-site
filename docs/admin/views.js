@@ -22,7 +22,7 @@ export async function dashboard() {
       ${tile('Open today', open)}
       ${tile('People', people.length)}
       ${tile('Approved photos', photos.length, 'gold')}
-      ${tile('Pending review', pending.length, pending.length ? 'gold' : '')}
+      ${tile('Unsettled', pending.length, pending.length ? 'gold' : '')}
     </div>
     <p class="dim" style="margin:0">
       Community-year coverage lands here once photographs start arriving.
@@ -79,7 +79,7 @@ export async function campaign() {
       ${tile('Years with nothing', cov.empty_cells)}
       ${tile('Contributors (30d)', intake.contributors || 0)}
       ${tile('Auto-rejected (30d)', intake.auto_rejected || 0)}
-      ${tile('Awaiting review', st.pending || 0, (st.pending || 0) ? 'gold' : '')}
+      ${tile('Unsettled', st.pending || 0, (st.pending || 0) ? 'gold' : '')}
     </div>
 
     <div class="cv-legend">
@@ -697,15 +697,19 @@ function quickTranslate(kind, id, lang, entities) {
 
 /* ---- photos ------------------------------------------------------------- */
 
-/* Two lists behind one page, because they answer two different questions.
-   "Waiting" is the old moderation queue and still matters — it holds whatever
-   the agent would not clear. "Published by the agent" is new and matters more:
-   nothing there was seen by a person before it went up, so this is where a
-   person sees it afterwards. Publishing without review is only defensible if
-   the undo is one click and the record of every decision is right there. */
+/* THERE IS NO APPROVAL HERE. The agent publishes or refuses, and nothing on
+   this page is waiting for a person to decide — the Publish button is gone and
+   its absence is the point. What remains is the two things a person still
+   needs: to see what the agent put up, and to take something down.
 
-const PHOTO_TABS = { pending: 'Waiting', agent: 'Published by the agent', all: 'Everything' };
-let photoTab = 'pending';
+   "On the site" is the important tab. Nothing there was seen by anyone before
+   it went public, so this is where it gets seen afterwards, with the screening
+   record attached. "Unsettled" is a health check on the screener rather than a
+   queue: everything in it is waiting on the machine, not on a person, and the
+   agent comes back to it by itself. */
+
+const PHOTO_TABS = { agent: 'On the site', pending: 'Unsettled', all: 'Everything' };
+let photoTab = 'agent';
 
 const PUBLIC_BASE = `${window.TMZ_SUPABASE_URL}/storage/v1/object/public/tmz-photo-public/`;
 const thumb = p => p.public_path
@@ -736,15 +740,17 @@ export async function photos() {
   $('#page').innerHTML = `
     <div class="page-head">
       <div><h1>Photographs</h1>
-        <p>${by('pending')} waiting · ${by('approved')} on the site · ${by('rejected')} rejected
-           · ${agentUp.length} published by the agent.</p></div>
+        <p>${by('approved')} on the site · ${by('rejected')} refused · ${by('pending')} unsettled.
+           The agent decides all of it; nothing here waits for you.</p></div>
     </div>
     <div class="tabs">${Object.entries(PHOTO_TABS).map(([k, label]) =>
       `<button class="tab ${photoTab === k ? 'on' : ''}" data-tab="${k}">${label}</button>`).join('')}</div>
     ${rows.length === 0 ? `<div class="empty">${
       photoTab === 'agent'
         ? 'The agent has not published anything yet.'
-        : 'Nothing here. Photographs arrive from the upload page and from WhatsApp.'
+        : photoTab === 'pending'
+          ? 'Nothing unsettled. Every photograph that arrived has been decided.'
+          : 'Nothing here. Photographs arrive from the upload page and from WhatsApp.'
     }</div>` : `
     <div class="tbl-wrap"><table class="tbl">
       <thead><tr><th></th><th>Community</th><th>Year</th><th>Source</th><th>Status</th><th>Screening</th><th></th></tr></thead>
@@ -757,9 +763,7 @@ export async function photos() {
         <td>${p.agent_decision ? `<span class="pill ${p.agent_decision}">${esc(p.agent_decision)}</span>` : '<span class="dim">—</span>'}</td>
         <td class="actions">
           <button class="edit">Open</button>
-          ${p.status === 'approved'
-            ? `<button class="del down">Take down</button>`
-            : `<button class="up">Publish</button><button class="del">Reject</button>`}
+          ${p.status === 'approved' ? `<button class="del down">Take down</button>` : ''}
         </td>
       </tr>`).join('')}</tbody>
     </table></div>`}`;
@@ -770,8 +774,7 @@ export async function photos() {
   document.querySelectorAll('#page tbody tr').forEach(tr => {
     const row = rows.find(r => r.id === tr.dataset.id);
     tr.querySelector('.edit').onclick = () => photoDrawer(row);
-    tr.querySelector('.up')?.addEventListener('click', () => setPhotoStatus(tr.dataset.id, 'approved'));
-    tr.querySelector('.del')?.addEventListener('click', () => setPhotoStatus(tr.dataset.id, 'rejected'));
+    tr.querySelector('.del')?.addEventListener('click', () => takeDown(tr.dataset.id));
   });
 }
 
@@ -852,9 +855,10 @@ async function photoDrawer(row) {
     </p>`,
     [
       { label: 'Save', kind: 'solid', onClick: save },
-      p.status === 'approved'
-        ? { label: 'Take down', kind: 'danger', onClick: () => { closeDrawer(); setPhotoStatus(p.id, 'rejected'); } }
-        : { label: 'Publish', kind: 'solid', onClick: () => { closeDrawer(); setPhotoStatus(p.id, 'approved'); } }
+      ...(p.status === 'approved'
+        ? [{ label: 'Take down', kind: 'danger',
+             onClick: () => { closeDrawer(); takeDown(p.id); } }]
+        : [])
     ]);
 
   /* The name list is only fetched when the drawer opens — 231 people is small,
@@ -925,41 +929,25 @@ async function photoDrawer(row) {
   }
 }
 
-/* Publishing moves a file, it does not just flip a column. The DERIVED copy is
-   what gets published — sanitised and resized — never the original bytes; that
-   distinction is the whole point of keeping two of them. Taking a photograph
-   down deletes the public object, because a row change alone leaves the URL
-   answering 200. */
-async function setPhotoStatus(id, status) {
+/* The only thing a person can still do to a photograph, and it is removal.
+   Publishing is the agent's, so there is no counterpart to this function; if
+   the agent refused something it should not have, the fix is MIN_CONFIDENCE or
+   REQUIRE_PEOPLE, not a button that quietly applies a different standard to
+   one picture.
+
+   Taking down deletes the public object as well as clearing the column. A row
+   change alone leaves the URL answering 200, which is not a takedown. */
+async function takeDown(id) {
+  if (!confirm('Take this photograph off the site? The original is kept.')) return;
   try {
-    const patch = { status };
-
-    if (status === 'approved') {
-      const [row] = await sb.from('tmz_photo', {})
-        .select('storage_path,derived_path,public_path', { filter: { id: `eq.${id}` } });
-      if (!row) throw new Error('That photograph no longer exists.');
-
-      if (!row.public_path) {
-        const source = row.derived_path || row.storage_path;
-        const dest = source.replace(/^derived\//, '');
-        await sb.storageCopy('tmz-photo-originals', source, 'tmz-photo-public', dest);
-        patch.public_path = dest;
-      }
-      patch.published_by = 'staff';
-      patch.published_at = new Date().toISOString();
-    } else {
-      const [row] = await sb.from('tmz_photo', {})
-        .select('public_path', { filter: { id: `eq.${id}` } });
-      if (row?.public_path) {
-        await sb.storageRemove('tmz-photo-public', row.public_path);
-        patch.public_path = null;
-      }
-      patch.published_by = null;
-      patch.published_at = null;
-    }
-
-    await sb.from('tmz_photo').update(patch, { id: `eq.${id}` });
-    toast(status === 'approved' ? 'Published.' : 'Taken down.');
+    const [row] = await sb.from('tmz_photo', {})
+      .select('public_path', { filter: { id: `eq.${id}` } });
+    if (row?.public_path) await sb.storageRemove('tmz-photo-public', row.public_path);
+    await sb.from('tmz_photo').update({
+      status: 'rejected', public_path: null,
+      published_by: null, published_at: null
+    }, { id: `eq.${id}` });
+    toast('Taken down.');
     photos();
   } catch (e) { alert(e.message); }
 }

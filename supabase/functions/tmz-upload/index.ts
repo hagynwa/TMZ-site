@@ -30,7 +30,7 @@ const GEMINI_MODEL = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3.6-flash';
 /* The same dials as the WhatsApp agent, read from the same secrets, because a
    contributor should not get a different answer for using a different door. */
 const AUTO_PUBLISH = (Deno.env.get('AUTO_PUBLISH') ?? 'on') !== 'off';
-const MIN_CONFIDENCE = Number(Deno.env.get('MIN_CONFIDENCE') ?? '0.8');
+const MIN_CONFIDENCE = Number(Deno.env.get('MIN_CONFIDENCE') ?? '0.6');
 const REQUIRE_PEOPLE = (Deno.env.get('REQUIRE_PEOPLE') ?? 'on') !== 'off';
 
 const CORS = {
@@ -198,6 +198,7 @@ Deno.serve(async req => {
         phash: clean.phash,
         status: publishable ? 'pending' : 'rejected',
         agent_decision: verdict.decision,
+        needs_rescreen: verdict.decision === 'hold',
         source: 'web',
         submission_id: submission.id,
         submitter_ref: [contributor_name, people, event_note].filter(Boolean).join(' · ') || null

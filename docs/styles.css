@@ -193,11 +193,16 @@ h1,h2,h3 { margin: 0; font-weight: 400; }
 [dir="rtl"] .band-head { letter-spacing: 0; text-transform: none; font-size: 11px; }
 .band-head .dim { font-size: 11px; font-weight: 300; letter-spacing: 0; text-transform: none; }
 .bars { display: flex; align-items: flex-end; gap: 5px; height: 58px; }
-[dir="rtl"] .bars { flex-direction: row-reverse; }
 .yb { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center;
       justify-content: flex-end; gap: 6px; }
 .bar { width: 100%; max-width: 11px; border-radius: 1.5px; background: #B4934F; }
 .bar.hole { background: none; border: 1px dashed #7B5F86; }
+/* Time runs left to right in every language, Hebrew included. These two rules
+   used to mirror the year band and the year rail under [dir="rtl"], on the
+   theory that a right-to-left reader reads a timeline right to left too. A
+   number axis is not prose: 1996 is on the left of every chart in the world,
+   and a Hebrew reader expects that as much as anyone. The chrome still
+   mirrors; the years do not. */
 .yl { font-size: 8.5px; letter-spacing: .08em; color: var(--dim); height: 10px; direction: ltr; }
 
 /* ---- community / year ---- */
@@ -210,7 +215,6 @@ h1,h2,h3 { margin: 0; font-weight: 400; }
 .rail { display: flex; align-items: baseline; justify-content: center; gap: 6px; overflow-x: auto;
         padding: 18px 0 6px; scrollbar-width: none; }
 .rail::-webkit-scrollbar { display: none; }
-[dir="rtl"] .rail { flex-direction: row-reverse; }
 .ry { font-family: var(--serif); font-weight: 300; line-height: 1; color: var(--muted); white-space: nowrap;
       transition: color .2s, opacity .2s; direction: ltr; }
 .ry:hover { color: var(--gold-lo); opacity: 1 !important; }

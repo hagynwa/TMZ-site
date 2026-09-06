@@ -260,16 +260,29 @@ regenerated on their side.
 
 ## What stays open after the move
 
-- **Two design questions never answered.** Does the Hebrew timeline run
-  right-to-left, oldest on the right? Who moderates — one central team, or an
-  editor per community?
-- **The screener's calibration is unverified on real photographs.** Every branch
-  was proven with the test console's forced verdict; the model's own judgement
-  was never exercised, because the free-tier quota ran out. **On the client's
-  paid key, put a dozen real photographs through `/sim/` before trusting
-  automatic publishing** — and consider `AUTO_PUBLISH=off` for the first week,
-  which still screens and records everything while a person watches what it
-  *would* have done.
+- **The screener now runs end to end, and its calibration is partly measured.**
+  A photograph with a person in it publishes (confidence 0.85–0.88); one with
+  nobody in it is refused with a message about what the archive collects. What
+  the measurement also showed:
+
+  - `MIN_CONFIDENCE` was defaulted to 0.8, which sits *inside* the range benign
+    photographs produce — 0.75, 0.85, 0.88 observed — so it was refusing good
+    material at the low end of normal. It is 0.6 now. That number is a backstop
+    for a model that is lost, not a safety signal: the model's confidence is
+    about the *picture*, not about harm.
+  - **The harm scores come back a flat 25 for everything** on benign images —
+    sexual, violence, advertising, screenshot, private_document, all 25. The
+    independent score ceilings therefore never fire, and the safety that is
+    actually working is `safe_to_publish` plus the challenge pass. Worth
+    watching whether a genuinely problematic image moves those numbers; if it
+    does not, the ceilings are decoration and should be replaced with something
+    that bites.
+
+  **Still: put a dozen of the organisation's own photographs through `/sim/`
+  before the number is published.** With no approval step, a photograph the
+  agent refuses is refused for good, so the dials want setting before the
+  campaign rather than during it. `AUTO_PUBLISH=off` for the first week screens
+  and records everything while a person watches what it *would* have done.
 - **Photographs above 12 megapixels are refused**, with a message asking the
   sender to resend as a normal photo rather than a file. That ceiling is the
   edge worker's memory, measured: 4000×3000 completes, 4640×3480 does not. Both
