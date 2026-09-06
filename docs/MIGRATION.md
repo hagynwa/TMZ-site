@@ -5,9 +5,9 @@ system *is*; this describes how it changes owner.
 
 **The client-facing half of this document is
 [`handover-tasks.html`](handover-tasks.html)** — the same migration written as
-eight numbered tasks for someone non-technical, in Hebrew, with the costs and
-the reasoning behind each account. Send them that; this file is for whoever
-does the work.
+numbered tasks for someone non-technical, in Hebrew, with the costs and the
+reasoning behind each account. Send them that; this file is for whoever does
+the work.
 
 ---
 
@@ -30,14 +30,12 @@ and the entire data move is one SQL dump of about 500 rows.
 
 ## Why this is worth doing beyond "the client should own it"
 
-Two things are wrong today that the move fixes by itself.
-
 **The database is shared.** The project (`xuoxkmwtdascazutoaxs`) also runs
-unrelated applications. That project carries a pre-existing
-`ALTER DEFAULT PRIVILEGES` granting every new public-schema table full
-DELETE/INSERT/UPDATE/**TRUNCATE** to `anon` and `authenticated` — migration 10
-revokes it for the `tmz_` tables, but the hazard is a property of the project,
-and the next table anyone adds there inherits it again.
+unrelated applications, and carries a pre-existing `ALTER DEFAULT PRIVILEGES`
+granting every new public-schema table full DELETE/INSERT/UPDATE/**TRUNCATE** to
+`anon` and `authenticated`. Migration 10 revokes it for the `tmz_` tables, but
+the hazard belongs to the project, and the next table anyone adds there inherits
+it again.
 
 **The client's data is in a personal account.** The photographs of their
 communities, the contributors' names and phone numbers, and the Google sign-ins
@@ -45,89 +43,142 @@ of their staff all sit behind personal credentials today.
 
 ---
 
-## Where the free tier is enough, and where it is a trap
+## What it costs
 
-| | Free tier verdict | Recommendation | Cost |
-|---|---|---|---|
-| **Supabase** | **Trap.** Free projects are **paused after one week of inactivity** — an archive between campaign pushes goes quiet, and the site goes dark with it. 500 MB database, 1 GB file storage: roughly 300–500 photographs at the two copies each one keeps. | **Pro from day one.** Never paused, 8 GB database, 100 GB storage, daily backups. Storage past 100 GB is $0.021/GB. | **$25/mo** |
-| **Gemini** | **Trap, for two reasons.** The quota (5–15 requests/min, ~1,000/day) is below one person emptying a shoebox — this has been returning `429` all day during testing. And on the free tier **your data may be used to improve Google's products**: these are photographs of real families and children at community events. | **Paid tier, card on file.** Screening is two calls per photograph on a Flash model; 5,000 photographs is a few dollars total. | **~$1–5/mo** |
-| **Meta WhatsApp** | **Genuinely free, and not a trap.** This agent only ever *replies*. Replies inside the 24-hour window a contributor opens are **free with no monthly cap** — Meta removed the old 1,000-service-conversation limit in November 2024. The per-message fees introduced in July 2025 apply to *template* messages, which are business-initiated, which this never sends. | Direct to Meta. No messaging provider. Expect Meta to ask for a payment method on the business account anyway; the bill should stay at zero. | **$0** |
-| **GitHub** | **Enough.** A public repository gets Pages and a custom domain free, forever. | Free — unless the client requires the source be private, which needs a paid plan for Pages. | **$0** |
-| **Domain** | — | A subdomain of the domain they already own. No registrar, no renewal, no new bill. | **$0** |
+| | Plan | Cost |
+|---|---|---|
+| **Supabase** | Free | **$0** |
+| **WhatsApp provider** | Dualhook, Developer | **$12/mo** |
+| **Gemini** | Paid tier | **~$1–5/mo** |
+| **Meta message fees** | service conversations | **$0** |
+| **GitHub Pages** | public repository | **$0** |
+| **Domain** | subdomain of theirs | **$0** |
 
-**Total: $25/month plus a few dollars of Gemini.**
+**About $15 a month.**
+
+### Supabase: free, with one number to watch
+
+Free it is. The two limits that matter, both measured rather than assumed:
+
+**Storage — 1 GB, which is about 464 photographs.** A 12-megapixel phone photo
+costs **2.21 MB** across the three objects each one keeps: the 2560px master
+(1.30 MB), the 1600px derivative (463 KB), and the published copy (463 KB).
+Watch this figure in the Supabase dashboard; **at roughly 400 photographs it is
+time to move to Pro**, where 100 GB holds about 46,000. Everything else on the
+free plan is comfortable — the database itself is rows of text, and 500 MB holds
+far more of those than the campaign will ever produce.
+
+**A project with no traffic at all for a week is paused.** A public archive
+linked from the organisation's own site normally gets enough traffic not to
+qualify, so this is a risk rather than a certainty — but it is the failure mode
+to recognise if the site is ever dark, and it is one click to resume.
+
+Both are knobs, not walls: `ARCHIVE_EDGE` and `ARCHIVE_QUALITY` in
+`_shared/imagesafe.ts` are the only two numbers deciding how many photographs
+fit, and raising them on a paid plan is a one-line change.
+
+### Gemini: paid, and the reason is not the quota
+
+The free tier's ~1,000 requests a day is below one person emptying a shoebox,
+and it has been returning `429` throughout development. But **the stronger
+reason is that free-tier data may be used to improve Google's products.** These
+are photographs of real families and children at community events. The paid
+tier excludes that. Screening is two calls per photograph on a Flash model;
+5,000 photographs is a few dollars in total.
 
 ---
 
-## HookMyApp is not needed, and has been removed
+## The WhatsApp provider
 
-The brief specified HookMyApp for WhatsApp. It is a forwarding service: it holds
-the Meta credentials, receives Meta's webhook, re-signs it with its own secret
-and forwards it on.
+The brief specified HookMyApp. The requirement — a provider that handles Meta
+onboarding, forwards Meta's raw webhook, and proxies the Graph API, so nobody
+here holds Meta credentials — is right; the question was only who does it
+cheapest.
 
-Every byte it forwards is Meta's own Graph API. The message envelope this code
-parses, the media endpoints it fetches from, the send call it makes — all of it
-was always Meta's. The service was a paid hop in front of a free API.
+| | Monthly | Per-message markup | Passthrough | Code change |
+|---|---|---|---|---|
+| **Dualhook** (Developer) | **$12** | none | direct Meta → our endpoint | two env vars |
+| 360dialog | €49 | none | Graph-compatible gateway | two env vars |
+| Twilio | $0 | $0.005 per message, inbound and outbound | **no** — its own payload shape | an adapter, ~150 lines |
+| Direct to Meta | $0 | none | n/a | none — already supported |
 
-**The change, in full:**
+**Dualhook, $12/month.** Same shape as HookMyApp: Embedded Signup for the
+onboarding, no per-message markup, 14-day trial, and its own description of
+itself — *"for businesses connecting WhatsApp assets they own or directly
+operate"* — is exactly this case. A quarter of 360dialog's price.
 
-| | Through a forwarder | Direct to Meta |
+360dialog is the fallback if a larger, longer-established vendor is wanted; the
+integration is identical. Twilio is cheapest in absolute terms at this volume
+but is not a passthrough — it normalises Meta's webhook into its own format and
+would need an adapter, which is precisely the coupling worth avoiding.
+
+**Meta's own message fees are zero here either way.** This agent only ever
+*replies*, and a reply inside the 24-hour window a contributor opens is free
+with no monthly cap — Meta removed the 1,000-service-conversation limit in
+November 2024. The per-message fees introduced in July 2025 are for *template*
+messages, which are business-initiated, which this never sends. Whatever the
+provider costs, the messages themselves do not.
+
+### Switching providers is configuration, not code
+
+Every provider in this market signs the raw body with HMAC-SHA256 and sends it
+as `sha256=<hex>`; they differ only in the header name and the secret. So all
+three are environment variables:
+
+| Variable | Dualhook / any forwarder | Direct to Meta |
 |---|---|---|
-| Endpoint | the forwarder's gateway | `https://graph.facebook.com/v22.0` |
-| Signature header | its own | `X-Hub-Signature-256` |
-| Signing secret | its channel secret | the Meta app's **App Secret** |
+| `META_GRAPH_API_URL` | the provider's gateway | `https://graph.facebook.com/v22.0` (default) |
+| `WEBHOOK_SIGNATURE_HEADER` | whatever they document | `x-hub-signature-256` (default) |
+| `META_APP_SECRET` | their channel secret | the Meta app's App Secret |
 
-That is the entire difference, and it is **already implemented** — the function
-accepts either header and reads `META_APP_SECRET`, falling back to the old
-variable so an existing channel would keep working. `META_GRAPH_API_URL` now
-defaults to Meta.
+That is the whole of the vendor lock-in, and it is why choosing the $12 option
+carries little risk: if Dualhook disappears, moving to 360dialog or straight to
+Meta is three settings and no deploy.
 
-What the forwarder was actually selling was **Embedded Signup** — the one-click
-flow that spares you creating a Meta app and passing review. Going direct means
-doing that once, by hand, and the client task list walks through it. It is an
-afternoon, not a project, and it is the last time anyone touches it.
-
-*If the client later wants a provider anyway* — for a shared team inbox, or
-because nobody there wants to hold Meta credentials — any BSP that forwards the
-raw webhook will work by setting `META_GRAPH_API_URL` and `WEBHOOK_HMAC_SECRET`.
-Nothing else in the code cares.
+**Confirm on the trial** which secret signs the webhook. Dualhook routes Meta's
+notification directly to our endpoint rather than re-signing it, which suggests
+Meta's own App Secret — in which case the defaults already work and only
+`META_GRAPH_API_URL` changes.
 
 ---
 
 ## What has to move
 
-**Five accounts, in this order.** Each one blocks the next.
+**Five accounts, in this order.** Each blocks the next.
 
-1. **Google account** — an organisational one (`archive@torahmitzion.org` or
-   similar), not a person's. Everything else hangs off it: Supabase sign-in,
-   Gemini billing, and the Google sign-in that lets staff into the back office.
-   *Never a departing employee's personal account.*
+1. **Google account** — organisational (`archive@torahmitzion.org`), not a
+   person's. Everything hangs off it: Supabase sign-in, Gemini billing, and the
+   Google sign-in that lets staff into the back office. *Never a departing
+   employee's personal account.*
 2. **GitHub organisation** — the repository transfers into it, Pages serves from
    it.
-3. **Supabase project** — on Pro, in a region near the communities (`eu-central`
-   or `us-east`; the map is worldwide but the staff are not).
+3. **Supabase project** — free plan, region near the staff (`eu-central`).
 4. **Google AI Studio / Gemini** — API key with billing enabled.
-5. **Meta Business + WhatsApp** — the longest lead time, because business
-   verification can take days. **Start it first even though it lands last.**
+5. **Meta Business account + the provider** — the longest lead time, because
+   Meta's business verification is manual and takes days. **Start it first even
+   though it lands last.** The provider makes the *technical* connection
+   trivial; it does not exempt anyone from Meta verifying the business.
 
-**The code.** Three files carry the project's identity and must be re-pointed:
-`docs/api.js`, `docs/admin/config.js`, `docs/sim/index.html` (the project URL and
-the anon key — both are public by design; RLS is what enforces access).
+**The code.** Three files carry the project's identity: `docs/api.js`,
+`docs/admin/config.js`, `docs/sim/index.html` — the project URL and the anon key,
+both public by design; RLS is what enforces access.
 
-**The database.** Twelve migrations under `supabase/migrations/`, applied in
-order to the new project with `supabase db push`. Then `scripts/import-real.mjs`
-repopulates communities, people and tenures from `scripts/real-data.json`.
-No photographs to move.
+**The database.** Sixteen migrations under `supabase/migrations/`, applied in
+order with `supabase db push`. Then `scripts/import-real.mjs` repopulates
+communities, people and tenures from `scripts/real-data.json`. No photographs to
+move.
 
-**The secrets.** Set on the new Supabase project:
+**The secrets**, set on the new Supabase project:
 
 | Secret | Where it comes from |
 |---|---|
 | `GEMINI_API_KEY` | Google AI Studio, billing enabled |
-| `META_APP_SECRET` | Meta app → Settings → Basic |
-| `VERIFY_TOKEN` | invented; typed into Meta's webhook form to match |
-| `WHATSAPP_ACCESS_TOKEN` | Meta **System User** token — permanent. A developer token expires in 24 hours and will strand the agent |
-| `WHATSAPP_PHONE_NUMBER_ID` | Meta → WhatsApp → API Setup |
+| `META_APP_SECRET` | the provider's dashboard (or the Meta app, going direct) |
+| `META_GRAPH_API_URL` | the provider's gateway |
+| `WEBHOOK_SIGNATURE_HEADER` | only if the provider uses its own header name |
+| `VERIFY_TOKEN` | invented; typed into the webhook form to match |
+| `WHATSAPP_ACCESS_TOKEN` | the provider's API key, or a Meta **System User** token — permanent. A Meta *developer* token expires in 24 hours and will strand the agent |
+| `WHATSAPP_PHONE_NUMBER_ID` | the provider's dashboard |
 | `TMZ_IP_SALT` | invented, any long random string |
 | `SIM_TOKEN` | invented; only for the test console |
 | `AUTO_PUBLISH` | `on`, or `off` to hold everything for review |
@@ -139,40 +190,39 @@ No photographs to move.
 ## Order of operations
 
 1. **Start Meta business verification.** Days of waiting; everything else is
-   hours. Begin here even though the WhatsApp number connects last.
+   hours.
 2. Google account → GitHub organisation → repository transferred.
-3. Supabase project on Pro. Migrations pushed, real data imported, buckets
-   created by migration 8.
+3. Supabase project. Migrations pushed, real data imported, buckets created by
+   migration 8.
 4. Google OAuth: new client, redirect URLs for the Pages domain, into Supabase
    Auth. Promote the first admin.
 5. Gemini key with billing. Set the secrets. Deploy both edge functions.
 6. Re-point the three client files, push, confirm Pages serves.
-7. Subdomain → DNS `CNAME` → GitHub Pages → HTTPS certificate issues itself.
-8. WhatsApp number, webhook, System User token. Verify with the test console
-   at `/sim/` **before** the number is given to anybody.
-9. Ten photographs through both doors — the upload page and WhatsApp — and check
-   they land where expected.
+7. Subdomain → DNS `CNAME` → GitHub Pages → HTTPS issues itself.
+8. Provider account, number connected, webhook pointed at
+   `…/functions/v1/tmz-whatsapp`. Verify with the test console at `/sim/`
+   **before** the number is given to anybody.
+9. Ten photographs through both doors and check they land where expected.
 10. **Only then** publish the number and the link.
 
 ---
 
 ## Cutover and rollback
 
-There is nothing to cut over *from* — the current deployment has no
-photographs and no audience. The old project is not switched off; it is simply
-never given the new domain. Keep it a fortnight in case something was missed,
-then delete the `tmz_` tables from it, which also removes the client's data from
-a shared project.
+There is nothing to cut over *from* — the current deployment has no photographs
+and no audience. The old project is not switched off; it is simply never given
+the new domain. Keep it a fortnight, then delete the `tmz_` tables from it,
+which also removes the client's data from a shared project.
 
 **Rollback** is: point the DNS record back, or remove it. The old site keeps
-working the whole time.
+working throughout.
 
 ---
 
 ## Two things must not be carried over
 
 **The current Gemini key is shared with another application.** Rotating or
-removing it breaks the other one. The client's project gets its own key; the
+removing it breaks the other one. The client's project gets its own; the
 existing key is not handed over.
 
 **`.env.supabase` is not part of the handover.** It holds service-role
@@ -183,8 +233,6 @@ regenerated on their side.
 
 ## What stays open after the move
 
-Unchanged by migration, and still true:
-
 - **Two design questions never answered.** Does the Hebrew timeline run
   right-to-left, oldest on the right? Who moderates — one central team, or an
   editor per community?
@@ -192,6 +240,12 @@ Unchanged by migration, and still true:
   was proven with the test console's forced verdict; the model's own judgement
   was never exercised, because the free-tier quota ran out. **On the client's
   paid key, put a dozen real photographs through `/sim/` before trusting
-  automatic publishing** — and consider running with `AUTO_PUBLISH=off` for the
-  first week, which still screens and records everything while a person watches
-  what it *would* have done.
+  automatic publishing** — and consider `AUTO_PUBLISH=off` for the first week,
+  which still screens and records everything while a person watches what it
+  *would* have done.
+- **Photographs above 12 megapixels are refused**, with a message asking the
+  sender to resend as a normal photo rather than a file. That ceiling is the
+  edge worker's memory, measured: 4000×3000 completes, 4640×3480 does not. Both
+  client paths shrink before sending and WhatsApp compresses on the way out, so
+  it should be rare — but it is the one input this system turns away for a
+  reason that has nothing to do with the photograph.
