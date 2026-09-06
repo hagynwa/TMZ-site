@@ -102,10 +102,33 @@ cheapest.
 | Twilio | $0 | $0.005 per message, inbound and outbound | **no** — its own payload shape | an adapter, ~150 lines |
 | Direct to Meta | $0 | none | n/a | none — already supported |
 
-**Dualhook, $12/month.** Same shape as HookMyApp: Embedded Signup for the
-onboarding, no per-message markup, 14-day trial, and its own description of
-itself — *"for businesses connecting WhatsApp assets they own or directly
-operate"* — is exactly this case. A quarter of 360dialog's price.
+### Check what the organisation already pays for, first
+
+**Torah MiTzion already sends WhatsApp messages through some service.** If it
+carries the three properties below, it costs nothing extra and there is no
+second vendor to manage. Task 7 in the client list asks them five questions to
+put to that provider; these are what the answers are being read for:
+
+1. **Official WhatsApp Business API (Cloud API), not a WhatsApp Web bridge.**
+   An unofficial bridge risks the number being banned and cannot be built on.
+2. **API access with documentation**, not a UI-only broadcast console.
+3. **Inbound webhook forwarding to an endpoint we specify.** *This is the one
+   that usually fails.* Broadcast tools are built to send; many either never
+   surface inbound messages over an API, or deliver them only into their own
+   shared inbox. Without this there is nothing to build on.
+
+A fourth answer matters even when all three pass: **the archive needs its own
+number, not the one they broadcast from.** The agent replies automatically to
+every message that arrives. On the number they use to reach communities, anyone
+answering one of their announcements would get a reply about a photo archive.
+Most providers add a second number to the same account cheaply or free.
+
+### If it does not fit: Dualhook, $12/month
+
+Same shape as HookMyApp: Embedded Signup for the onboarding, no per-message
+markup, 14-day trial, and its own description of itself — *"for businesses
+connecting WhatsApp assets they own or directly operate"* — is exactly this
+case. A quarter of 360dialog's price.
 
 360dialog is the fallback if a larger, longer-established vendor is wanted; the
 integration is identical. Twilio is cheapest in absolute terms at this volume
@@ -154,10 +177,11 @@ Meta's own App Secret — in which case the defaults already work and only
    it.
 3. **Supabase project** — free plan, region near the staff (`eu-central`).
 4. **Google AI Studio / Gemini** — API key with billing enabled.
-5. **Meta Business account + the provider** — the longest lead time, because
+5. **Meta Business account + a provider** — the longest lead time, because
    Meta's business verification is manual and takes days. **Start it first even
-   though it lands last.** The provider makes the *technical* connection
-   trivial; it does not exempt anyone from Meta verifying the business.
+   though it lands last.** A provider makes the *technical* connection trivial;
+   it does not exempt anyone from Meta verifying the business. Read the existing
+   provider's answers before opening an account anywhere new.
 
 **The code.** Three files carry the project's identity: `docs/api.js`,
 `docs/admin/config.js`, `docs/sim/index.html` — the project URL and the anon key,
@@ -199,9 +223,10 @@ move.
 5. Gemini key with billing. Set the secrets. Deploy both edge functions.
 6. Re-point the three client files, push, confirm Pages serves.
 7. Subdomain → DNS `CNAME` → GitHub Pages → HTTPS issues itself.
-8. Provider account, number connected, webhook pointed at
-   `…/functions/v1/tmz-whatsapp`. Verify with the test console at `/sim/`
-   **before** the number is given to anybody.
+8. Read the existing provider's answers. Reuse it if it forwards inbound
+   webhooks; otherwise open Dualhook. Either way a **separate number**, webhook
+   pointed at `…/functions/v1/tmz-whatsapp`. Verify with the test console at
+   `/sim/` **before** the number is given to anybody.
 9. Ten photographs through both doors and check they land where expected.
 10. **Only then** publish the number and the link.
 
