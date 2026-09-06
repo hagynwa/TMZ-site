@@ -3,6 +3,12 @@
 Written 2026-09-04. Companion to [`PLAN.md`](PLAN.md), which describes what the
 system *is*; this describes how it changes owner.
 
+**The client-facing half of this document is
+[`handover-tasks.html`](handover-tasks.html)** — the same migration written as
+eight numbered tasks for someone non-technical, in Hebrew, with the costs and
+the reasoning behind each account. Send them that; this file is for whoever
+does the work.
+
 ---
 
 ## Do this before the campaign launches, not after
