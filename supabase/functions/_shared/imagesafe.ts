@@ -14,16 +14,38 @@ import { decode, Image } from 'https://deno.land/x/imagescript@1.2.17/mod.ts';
 /* Roughly a phone photograph at full resolution. Anything larger is either a
    mistake or an attempt, and neither is worth decoding. */
 export const MAX_BYTES = 12 * 1024 * 1024;
-/* 40 megapixels. A 20000x20000 PNG is 60 KB on the wire and 1.6 GB decoded;
-   this is the only line of defence against that, and it has to run before the
-   decoder does. */
-export const MAX_PIXELS = 40_000_000;
+/* The decoder allocates width x height x 4 bytes before anything else runs, so
+   this ceiling is set by what the worker can actually hold, not by what seems
+   generous. Measured, not guessed: 4000x3000 (12 MP) completes; 4640x3480 (16
+   MP) does not, whatever the code downstream does. So the line sits just above
+   the first and below the second. Above it the file is refused with a reason
+   the sender can read, which is the whole point — the alternative is the worker
+   dying mid-request and the sender hearing nothing at all.
+
+   Both client paths shrink before sending — the contribute page to 2200px, the
+   test console to 1600px — and WhatsApp compresses on the way out, so this
+   ceiling is a backstop rather than a routine limit.
+
+   It also stops a decompression bomb: a 20000x20000 PNG is 60 KB on the wire
+   and 1.6 GB decoded, and this check runs before the decoder does. */
+export const MAX_PIXELS = 12_500_000;
 /* What the site actually serves. Nobody needs more, and it caps what a
    re-encode can cost. A phone photograph arrives at 3-4 MB and leaves at a
    few hundred KB; an already-small image can come out slightly larger, which
    is the price of not serving anyone else's bytes. */
 export const PUBLIC_EDGE = 1600;
 export const PUBLIC_QUALITY = 80;
+
+/* The master kept in the private bucket. Full resolution at quality 92 costs
+   3-4 MB a photograph, and three objects per photograph — master, derivative,
+   published copy — is what decides how far a storage allowance goes. 2560px at
+   88 is still well above anything the site displays and above most scans of an
+   old print, and it roughly thirds the bill.
+
+   Raise these on a plan with room; they are the only two numbers that decide
+   how many photographs fit. */
+export const ARCHIVE_EDGE = 2560;
+export const ARCHIVE_QUALITY = 88;
 
 export type Sniffed = 'jpeg' | 'png' | 'webp' | 'gif';
 
@@ -88,7 +110,17 @@ export function dimensions(b: Uint8Array, kind: Sniffed): { w: number; h: number
   } catch { return null; }
 }
 
-export class UnsafeFile extends Error {}
+/* Whether a refusal was about the CONTENT of the file or merely its SIZE.
+   They deserve different answers: telling someone their grandmother's
+   photograph "did not pass our check" when the only problem was that it was
+   large is both wrong and unkind. */
+export class UnsafeFile extends Error {
+  readonly tooBig: boolean;
+  constructor(message: string, tooBig = false) {
+    super(message);
+    this.tooBig = tooBig;
+  }
+}
 
 export interface Clean {
   /** Re-encoded JPEG, the only bytes that ever reach the public bucket. */
@@ -109,7 +141,7 @@ export interface Clean {
    shown to the sender verbatim. */
 export async function sanitize(bytes: Uint8Array): Promise<Clean> {
   if (bytes.length === 0) throw new UnsafeFile('empty file');
-  if (bytes.length > MAX_BYTES) throw new UnsafeFile(`too large (${bytes.length} bytes)`);
+  if (bytes.length > MAX_BYTES) throw new UnsafeFile(`too large (${bytes.length} bytes)`, true);
 
   const kind = sniff(bytes);
   if (!kind) throw new UnsafeFile('not a JPEG, PNG, WebP or GIF');
@@ -117,7 +149,7 @@ export async function sanitize(bytes: Uint8Array): Promise<Clean> {
   const dim = dimensions(bytes, kind);
   if (!dim) throw new UnsafeFile('unreadable image header');
   if (dim.w < 40 || dim.h < 40) throw new UnsafeFile(`too small (${dim.w}x${dim.h})`);
-  if (dim.w * dim.h > MAX_PIXELS) throw new UnsafeFile(`too many pixels (${dim.w}x${dim.h})`);
+  if (dim.w * dim.h > MAX_PIXELS) throw new UnsafeFile(`too many pixels (${dim.w}x${dim.h})`, true);
 
   let img: Image;
   try {
@@ -131,12 +163,28 @@ export async function sanitize(bytes: Uint8Array): Promise<Clean> {
   }
   if (!img || !img.width || !img.height) throw new UnsafeFile('decoded to nothing');
 
-  const phash = dhash(img);
+  /* ORDER MATTERS HERE, and getting it wrong took the function down on every
+     photograph a modern phone takes.
+
+     A decoded image is width x height x 4 bytes of raw bitmap: 48 MB for a
+     4000x3000 frame. This used to hash a clone, resize a clone for the master
+     and resize another clone for the public copy — three copies of that 48 MB
+     alive at once, which the edge worker answered with WORKER_RESOURCE_LIMIT
+     and no reply at all. 3200x2400 survived; 4000x3000, the ordinary output of
+     any phone sold today, did not.
+
+     So: shrink FIRST, in place, and derive everything from the small one.
+     resize() mutates rather than copying, so the big bitmap is released before
+     anything else is allocated. */
+  const aScale = Math.min(1, ARCHIVE_EDGE / Math.max(img.width, img.height));
+  const shrunk = aScale < 1;
+  if (shrunk) img.resize(Math.round(img.width * aScale), Math.round(img.height * aScale));
 
   /* Re-encoded from the decoded pixels. This is the step that makes the file
      safe: whatever was hiding in the container is not in the bitmap, and the
      bitmap is all that survives. */
-  const archiveBytes = await img.encodeJPEG(92);
+  const archiveBytes = await img.encodeJPEG(ARCHIVE_QUALITY);
+  const phash = dhash(img);
 
   const scale = Math.min(1, PUBLIC_EDGE / Math.max(img.width, img.height));
   const pub = scale < 1
@@ -147,7 +195,7 @@ export async function sanitize(bytes: Uint8Array): Promise<Clean> {
   return {
     publicBytes, archiveBytes,
     width: pub.width, height: pub.height,
-    kind, phash, resized: scale < 1
+    kind, phash, resized: scale < 1 || shrunk
   };
 }
 

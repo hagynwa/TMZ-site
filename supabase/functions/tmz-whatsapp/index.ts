@@ -39,7 +39,13 @@ const GEMINI_MODEL = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3.6-flash';
    HookMyApp channel keeps working without a redeploy. */
 const WEBHOOK_SECRET = Deno.env.get('META_APP_SECRET')
   ?? Deno.env.get('WEBHOOK_HMAC_SECRET') ?? '';
-const SIGNATURE_HEADERS = ['x-hub-signature-256', 'x-hookmyapp-signature-256'];
+/* Every provider in this market signs the raw body with HMAC-SHA256 and sends
+   it as `sha256=<hex>`; they differ only in the header name and the secret.
+   So the header is configuration, not code — naming a new provider is an
+   environment variable, and swapping one for another costs no deploy. */
+const SIGNATURE_HEADERS = (Deno.env.get('WEBHOOK_SIGNATURE_HEADER')
+  ?? 'x-hub-signature-256,x-hookmyapp-signature-256')
+  .split(',').map(h => h.trim().toLowerCase()).filter(Boolean);
 const VERIFY_TOKEN = Deno.env.get('VERIFY_TOKEN') ?? '';
 /* Meta's own endpoint by default. This was a forwarding service's gateway, and
    pointing it back at Meta is the whole of the change — the message shape, the
@@ -268,6 +274,7 @@ const SAY: Record<string, Record<string, string>> = {
     published: 'Thank you — it is on the site now. Send another whenever you like.',
     saved: 'Noted, thank you. Send another whenever you like.',
     rejected: 'Sorry — that image did not pass our automatic check, so it was not added.',
+    toobig: 'That photograph is a little too large for us to handle. Please send it as a normal photo rather than a file or document, and it will go straight in.',
     dupe: 'We already hold that photograph. Thank you all the same.',
     hello: 'Hello, and thank you for helping build the Torah MiTzion 30 archive. Send a photograph and I will take it from there.',
     nophoto: 'Send a photograph whenever you are ready — I can take several in a row.'
@@ -277,6 +284,7 @@ const SAY: Record<string, Record<string, string>> = {
     published: 'תודה — התמונה כבר באתר. אפשר לשלוח עוד מתי שתרצו.',
     saved: 'נרשם, תודה. אפשר לשלוח עוד מתי שתרצו.',
     rejected: 'מצטערים — התמונה לא עברה את הבדיקה האוטומטית ולכן לא נוספה.',
+    toobig: 'התמונה גדולה מדי עבורנו. שלחו אותה כתמונה רגילה ולא כקובץ או מסמך, והיא תיכנס מיד.',
     dupe: 'התמונה הזו כבר אצלנו. תודה בכל זאת.',
     hello: 'שלום, ותודה שאתם עוזרים לבנות את ארכיון תורה מציון 30. שלחו תמונה ואמשיך מכאן.',
     nophoto: 'שלחו תמונה מתי שנוח לכם — אפשר כמה ברצף.'
@@ -286,6 +294,7 @@ const SAY: Record<string, Record<string, string>> = {
     published: 'Спасибо — фотография уже на сайте. Присылайте ещё в любое время.',
     saved: 'Записано, спасибо. Присылайте ещё в любое время.',
     rejected: 'Извините — изображение не прошло автоматическую проверку и не было добавлено.',
+    toobig: 'Фотография слишком большая. Отправьте её как обычное фото, а не как файл или документ, и она сразу попадёт в архив.',
     dupe: 'Эта фотография у нас уже есть. Спасибо в любом случае.',
     hello: 'Здравствуйте, и спасибо, что помогаете собрать архив «Тора МиЦион 30». Пришлите фотографию, дальше я всё сделаю.',
     nophoto: 'Присылайте фотографию, когда будет удобно — можно несколько подряд.'
@@ -295,6 +304,7 @@ const SAY: Record<string, Record<string, string>> = {
     published: 'Merci — elle est en ligne. Envoyez-en d’autres quand vous voulez.',
     saved: 'Noté, merci. Envoyez-en d’autres quand vous voulez.',
     rejected: 'Désolé — cette image n’a pas passé notre vérification automatique et n’a pas été ajoutée.',
+    toobig: 'Cette photographie est un peu trop lourde pour nous. Envoyez-la comme photo normale plutôt que comme fichier, et elle sera ajoutée aussitôt.',
     dupe: 'Nous avons déjà cette photographie. Merci quand même.',
     hello: 'Bonjour, et merci de nous aider à constituer les archives Torah MiTzion 30. Envoyez une photographie et je m’occupe du reste.',
     nophoto: 'Envoyez une photographie quand vous voulez — je peux en recevoir plusieurs à la suite.'
@@ -304,6 +314,7 @@ const SAY: Record<string, Record<string, string>> = {
     published: 'Danke — es ist jetzt auf der Website. Schicken Sie gerne weitere.',
     saved: 'Notiert, danke. Schicken Sie gerne weitere.',
     rejected: 'Leider hat dieses Bild unsere automatische Prüfung nicht bestanden und wurde nicht aufgenommen.',
+    toobig: 'Dieses Foto ist etwas zu groß für uns. Schicken Sie es als normales Bild und nicht als Datei, dann wird es sofort aufgenommen.',
     dupe: 'Dieses Foto haben wir bereits. Trotzdem vielen Dank.',
     hello: 'Hallo, und danke, dass Sie beim Aufbau des Torah-MiTzion-30-Archivs helfen. Schicken Sie ein Foto, den Rest übernehme ich.',
     nophoto: 'Schicken Sie ein Foto, wann immer Sie mögen — auch mehrere hintereinander.'
@@ -313,6 +324,7 @@ const SAY: Record<string, Record<string, string>> = {
     published: 'Gracias — ya está en el sitio. Envíe más cuando quiera.',
     saved: 'Anotado, gracias. Envíe más cuando quiera.',
     rejected: 'Lo sentimos — esa imagen no pasó nuestra verificación automática y no fue añadida.',
+    toobig: 'Esa fotografía es demasiado grande para nosotros. Envíela como foto normal y no como archivo, y entrará enseguida.',
     dupe: 'Ya tenemos esa fotografía. Gracias de todos modos.',
     hello: 'Hola, y gracias por ayudarnos a construir el archivo Torah MiTzion 30. Envíe una fotografía y yo me encargo del resto.',
     nophoto: 'Envíe una fotografía cuando le venga bien — puedo recibir varias seguidas.'
@@ -590,10 +602,14 @@ async function handle(body: any, ch: Channel) {
        storage bucket or the database. It is the cheapest refusal there is, and
        the one that stops the whole class of "image" that is really something
        else. */
+    const tooBig = e instanceof UnsafeFile && e.tooBig;
     const why = e instanceof UnsafeFile ? e.message : String(e);
-    ch.trace('refused at the door', { why });
-    await strike(waId, ch.isTest);
-    await ch.reply(from, say(lang, 'rejected'));
+    ch.trace('refused at the door', { why, tooBig });
+    /* Only a content refusal is a strike. Sending a large photograph is not
+       an attempt to get something past the screener, and three of them should
+       not silence someone for a day. */
+    if (!tooBig) await strike(waId, ch.isTest);
+    await ch.reply(from, say(lang, tooBig ? 'toobig' : 'rejected'));
     return;
   }
 

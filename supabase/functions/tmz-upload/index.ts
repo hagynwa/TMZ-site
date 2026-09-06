@@ -111,8 +111,10 @@ Deno.serve(async req => {
       if (e instanceof UnsafeFile) {
         console.log('refused at the door:', e.message);
         return json({
-          error: 'That file could not be read as a photograph. JPEG, PNG, WebP and GIF are accepted.'
-        }, 415);
+          error: e.tooBig
+            ? 'That photograph is larger than we can handle. Try a smaller copy, or send it by WhatsApp.'
+            : 'That file could not be read as a photograph. JPEG, PNG, WebP and GIF are accepted.'
+        }, e.tooBig ? 413 : 415);
       }
       throw e;
     }
