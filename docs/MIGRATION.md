@@ -48,13 +48,15 @@ of their staff all sit behind personal credentials today.
 | | Plan | Cost |
 |---|---|---|
 | **Supabase** | Free | **$0** |
-| **WhatsApp provider** | Dualhook, Developer | **$12/mo** |
+| **WhatsApp provider** | their existing one, or Dualhook Developer | **$0–12/mo** |
 | **Gemini** | Paid tier | **~$1–5/mo** |
 | **Meta message fees** | service conversations | **$0** |
 | **GitHub Pages** | public repository | **$0** |
 | **Domain** | subdomain of theirs | **$0** |
 
-**About $15 a month.**
+**Between $1 and $17 a month**, and which end depends on one answer: whether
+the WhatsApp service Torah MiTzion already pays for can forward inbound
+messages to us. See below.
 
 ### Supabase: free, with one number to watch
 
