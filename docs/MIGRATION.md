@@ -48,15 +48,14 @@ of their staff all sit behind personal credentials today.
 | | Plan | Cost |
 |---|---|---|
 | **Supabase** | Free | **$0** |
-| **WhatsApp provider** | their existing one, or Dualhook Developer | **$0–12/mo** |
+| **WhatsApp provider** | Heyy — already theirs | **$0 extra** |
 | **Gemini** | Paid tier | **~$1–5/mo** |
 | **Meta message fees** | service conversations | **$0** |
 | **GitHub Pages** | public repository | **$0** |
 | **Domain** | subdomain of theirs | **$0** |
 
-**Between $1 and $17 a month**, and which end depends on one answer: whether
-the WhatsApp service Torah MiTzion already pays for can forward inbound
-messages to us. See below.
+**About $1–5 a month**, all of it Gemini. Heyy is already paid for and forwards
+inbound messages, which was the question that decided it.
 
 ### Supabase: free, with one number to watch
 
@@ -90,82 +89,44 @@ tier excludes that. Screening is two calls per photograph on a Flash model;
 
 ---
 
-## The WhatsApp provider
+## The WhatsApp provider — Heyy, the one they already have
 
-The brief specified HookMyApp. The requirement — a provider that handles Meta
-onboarding, forwards Meta's raw webhook, and proxies the Graph API, so nobody
-here holds Meta credentials — is right; the question was only who does it
-cheapest.
+**Settled: Torah MiTzion's own provider, [heyy.io](https://heyy.io).** No second
+vendor, no extra bill. The adapter is written, deployed and tested.
 
-| | Monthly | Per-message markup | Passthrough | Code change |
-|---|---|---|---|---|
-| **Dualhook** (Developer) | **$12** | none | direct Meta → our endpoint | two env vars |
-| 360dialog | €49 | none | Graph-compatible gateway | two env vars |
-| Twilio | $0 | $0.005 per message, inbound and outbound | **no** — its own payload shape | an adapter, ~150 lines |
-| Direct to Meta | $0 | none | n/a | none — already supported |
+It is **not** a Meta passthrough — it delivers its own event shape and takes its
+own send call — so it needed the ~150 lines the plan predicted for that case.
+That work lives in `heyyChannel` and `metaEnvelopeFromHeyy`: Heyy's event is
+rewritten into the envelope Meta sends, so one handler serves both providers and
+neither gets a private code path to rot in.
 
-### Check what the organisation already pays for, first
-
-**Torah MiTzion already sends WhatsApp messages through some service.** If it
-carries the three properties below, it costs nothing extra and there is no
-second vendor to manage. Task 7 in the client list asks them five questions to
-put to that provider; these are what the answers are being read for:
-
-1. **Official WhatsApp Business API (Cloud API), not a WhatsApp Web bridge.**
-   An unofficial bridge risks the number being banned and cannot be built on.
-2. **API access with documentation**, not a UI-only broadcast console.
-3. **Inbound webhook forwarding to an endpoint we specify.** *This is the one
-   that usually fails.* Broadcast tools are built to send; many either never
-   surface inbound messages over an API, or deliver them only into their own
-   shared inbox. Without this there is nothing to build on.
-
-A fourth answer matters even when all three pass: **the archive needs its own
-number, not the one they broadcast from.** The agent replies automatically to
-every message that arrives. On the number they use to reach communities, anyone
-answering one of their announcements would get a reply about a photo archive.
-Most providers add a second number to the same account cheaply or free.
-
-### If it does not fit: Dualhook, $12/month
-
-Same shape as HookMyApp: Embedded Signup for the onboarding, no per-message
-markup, 14-day trial, and its own description of itself — *"for businesses
-connecting WhatsApp assets they own or directly operate"* — is exactly this
-case. A quarter of 360dialog's price.
-
-360dialog is the fallback if a larger, longer-established vendor is wanted; the
-integration is identical. Twilio is cheapest in absolute terms at this volume
-but is not a passthrough — it normalises Meta's webhook into its own format and
-would need an adapter, which is precisely the coupling worth avoiding.
-
-**Meta's own message fees are zero here either way.** This agent only ever
-*replies*, and a reply inside the 24-hour window a contributor opens is free
-with no monthly cap — Meta removed the 1,000-service-conversation limit in
-November 2024. The per-message fees introduced in July 2025 are for *template*
-messages, which are business-initiated, which this never sends. Whatever the
-provider costs, the messages themselves do not.
-
-### Switching providers is configuration, not code
-
-Every provider in this market signs the raw body with HMAC-SHA256 and sends it
-as `sha256=<hex>`; they differ only in the header name and the secret. So all
-three are environment variables:
-
-| Variable | Dualhook / any forwarder | Direct to Meta |
+| | Heyy | Meta direct (still supported) |
 |---|---|---|
-| `META_GRAPH_API_URL` | the provider's gateway | `https://graph.facebook.com/v22.0` (default) |
-| `WEBHOOK_SIGNATURE_HEADER` | whatever they document | `x-hub-signature-256` (default) |
-| `META_APP_SECRET` | their channel secret | the Meta app's App Secret |
+| Inbound | `message.received` → `?heyy=<secret>` | Meta webhook → `X-Hub-Signature-256` |
+| Photograph | `content.attachments[].file.url` | a media id fetched from the Graph API |
+| Reply | `POST /v2/{channelId}/whatsapp_messages/send` | `POST /{phoneNumberId}/messages` |
+| Auth | `Authorization: Bearer <API token>` | a System User token |
 
-That is the whole of the vendor lock-in, and it is why choosing the $12 option
-carries little risk: if Dualhook disappears, moving to 360dialog or straight to
-Meta is three settings and no deploy.
+**One security caveat worth raising with Heyy.** They document no webhook
+signature, so the URL carries the proof instead — Heyy is given
+`…/tmz-whatsapp?heyy=<secret>` and anything without it gets 403. That is weaker
+than an HMAC over the body: the secret travels in the URL and lands in their
+request logs. **Ask their support whether a signing secret exists.** If one
+does, `WEBHOOK_SIGNATURE_HEADER` and `META_APP_SECRET` already handle it and the
+query-string gate can go.
 
-**Confirm on the trial** which secret signs the webhook. Dualhook routes Meta's
-notification directly to our endpoint rather than re-signing it, which suggests
-Meta's own App Secret — in which case the defaults already work and only
-`META_GRAPH_API_URL` changes.
+**A separate number, still.** The agent replies automatically to everything that
+arrives. On the number Torah MiTzion broadcasts from, anyone answering one of
+their announcements would get a reply about a photo archive.
 
----
+**Meta's own message fees remain zero.** This agent only ever *replies*, and a
+reply inside the 24-hour window a contributor opens is free with no monthly cap.
+
+### Switching providers is still configuration
+
+`META_GRAPH_API_URL`, `WEBHOOK_SIGNATURE_HEADER` and `META_APP_SECRET` drive the
+Meta-shaped path; `HEYY_*` drives this one. Both are live in the same function,
+so moving between them is environment variables and no deploy.
 
 ## What has to move
 

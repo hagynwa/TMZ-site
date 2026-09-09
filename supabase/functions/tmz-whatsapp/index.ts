@@ -43,6 +43,22 @@ const WEBHOOK_SECRET = Deno.env.get('META_APP_SECRET')
    it as `sha256=<hex>`; they differ only in the header name and the secret.
    So the header is configuration, not code — naming a new provider is an
    environment variable, and swapping one for another costs no deploy. */
+/* Heyy (heyy.io) is the organisation's own messaging provider, so the archive
+   goes through the account they already pay for rather than a second vendor.
+   It is NOT a Meta passthrough: it delivers its own event shape and takes its
+   own send call, so it needs a translation layer. That layer is heyyChannel
+   below — the handler never learns which provider it is talking to. */
+const HEYY_API_TOKEN = Deno.env.get('HEYY_API_TOKEN') ?? '';
+const HEYY_CHANNEL_ID = Deno.env.get('HEYY_CHANNEL_ID') ?? '';
+const HEYY_API_BASE = Deno.env.get('HEYY_API_BASE') ?? 'https://api.heyy.io';
+/* Heyy documents no webhook signature, so the URL carries the proof instead:
+   Heyy is given .../tmz-whatsapp?heyy=<secret> and anything without it is
+   refused. Weaker than an HMAC over the body — the secret travels in the URL
+   and lands in their logs — so it is worth asking Heyy support whether a
+   signing secret exists; if one appears, WEBHOOK_SIGNATURE_HEADER and
+   META_APP_SECRET already handle it and this can go. */
+const HEYY_WEBHOOK_SECRET = Deno.env.get('HEYY_WEBHOOK_SECRET') ?? '';
+
 const SIGNATURE_HEADERS = (Deno.env.get('WEBHOOK_SIGNATURE_HEADER')
   ?? 'x-hub-signature-256,x-hookmyapp-signature-256')
   .split(',').map(h => h.trim().toLowerCase()).filter(Boolean);
@@ -360,6 +376,80 @@ const liveChannel: Channel = {
   // forceVerdict is deliberately absent here and cannot be reached from a webhook.
 };
 
+/* Heyy's channel. Two edges differ from Meta and nothing else does: a
+   photograph arrives as an attachment URL rather than a media id, and a reply
+   is a POST to their send endpoint rather than to the Graph API. */
+const heyyChannel: Channel = {
+  async fetchMedia(ref: string) {
+    /* metaEnvelopeFromHeyy puts the attachment's download URL where Meta would
+       put a media id, so "fetching media" here is just following it. */
+    const res = await fetch(ref, HEYY_API_TOKEN
+      ? { headers: { Authorization: `Bearer ${HEYY_API_TOKEN}` } }
+      : {});
+    if (!res.ok) throw new Error(`heyy media ${res.status}`);
+    return {
+      bytes: new Uint8Array(await res.arrayBuffer()),
+      mime: res.headers.get('content-type') ?? 'image/jpeg'
+    };
+  },
+  async reply(to: string, text: string) {
+    if (!HEYY_API_TOKEN || !HEYY_CHANNEL_ID) {
+      console.log(`[heyy not configured] would reply to ${to}: ${text}`);
+      return;
+    }
+    const res = await fetch(
+      `${HEYY_API_BASE}/v2/${HEYY_CHANNEL_ID}/whatsapp_messages/send`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${HEYY_API_TOKEN}`,
+                   'Content-Type': 'application/json' },
+        /* The handler carries digits only, the way Meta addresses people; Heyy
+           wants it dialable. */
+        body: JSON.stringify({
+          phoneNumber: to.startsWith('+') ? to : `+${to}`,
+          type: 'TEXT',
+          bodyText: text.slice(0, 4096)
+        })
+      });
+    if (!res.ok) console.error('heyy reply failed', res.status, (await res.text()).slice(0, 300));
+  },
+  trace: (step, detail) => console.log('[heyy]', step, JSON.stringify(detail)),
+  isTest: false
+};
+
+/* Heyy's event, rewritten as the envelope Meta sends — so one handler serves
+   both providers and neither one gets a private code path to rot in. */
+function metaEnvelopeFromHeyy(body: any) {
+  const d = body?.data;
+  if (body?.event !== 'message.received' || d?.sender !== 'inbound') return null;
+
+  const from = String(d?.handle?.value ?? '').replace(/[^0-9]/g, '');
+  if (!from) return null;
+
+  /* Only the first image. Someone sending four photographs sends four events,
+     which is what the archive wants anyway — one row each. */
+  const file = (d?.content?.attachments ?? [])
+    .map((a: any) => a?.file)
+    .find((f: any) => f?.url && String(f?.contentType ?? f?.type ?? '').includes('image'));
+
+  const msg: any = { from, id: d?.id ?? crypto.randomUUID() };
+  if (file) {
+    msg.type = 'image';
+    // the download URL stands in for Meta's media id; heyyChannel follows it
+    msg.image = { id: file.url, caption: d?.content?.body || undefined };
+  } else {
+    msg.type = 'text';
+    msg.text = { body: d?.content?.body ?? '' };
+  }
+
+  return {
+    entry: [{ changes: [{ value: {
+      contacts: [{ profile: { name: d?.contact?.name ?? null }, wa_id: from }],
+      messages: [msg]
+    } }] }]
+  };
+}
+
 /* The test console's channel. The photograph arrives inline in the request and
    replies are collected rather than sent, so the browser can render the
    conversation. Nothing else about the handler changes. */
@@ -406,6 +496,30 @@ function metaEnvelope(m: any) {
       messages: [msg]
     } }] }]
   };
+}
+
+async function handleHeyy(req: Request, url: URL) {
+  if (!HEYY_WEBHOOK_SECRET) return new Response('heyy webhook not configured', { status: 503 });
+  const given = url.searchParams.get('heyy') ?? '';
+  if (given.length !== HEYY_WEBHOOK_SECRET.length) return new Response('forbidden', { status: 403 });
+  let diff = 0;
+  for (let i = 0; i < HEYY_WEBHOOK_SECRET.length; i++) {
+    diff |= given.charCodeAt(i) ^ HEYY_WEBHOOK_SECRET.charCodeAt(i);
+  }
+  if (diff !== 0) return new Response('forbidden', { status: 403 });
+
+  const body = await req.json().catch(() => null);
+  const envelope = body ? metaEnvelopeFromHeyy(body) : null;
+
+  /* Heyy also sends message.sent and message.updated, and retries anything that
+     is not 2XX. Acknowledging what we deliberately ignore stops it retrying
+     forever and eventually disabling the webhook. */
+  if (!envelope) return new Response('ignored', { status: 200 });
+
+  /* 200 first, work after: Heyy retries on anything else, and a slow screening
+     call would have it sending the same photograph again. */
+  queueMicrotask(() => handleAndDrain(envelope, heyyChannel).catch(e => console.error('heyy', e)));
+  return new Response('ok', { status: 200 });
 }
 
 async function handleSim(req: Request, url: URL) {
@@ -472,6 +586,7 @@ Deno.serve(async req => {
 
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (url.searchParams.has('sim') && req.method === 'POST') return handleSim(req, url);
+  if (url.searchParams.has('heyy') && req.method === 'POST') return handleHeyy(req, url);
 
   // Meta's verification handshake
   if (req.method === 'GET') {
