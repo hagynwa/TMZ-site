@@ -51,9 +51,15 @@ SUPABASE_ACCESS_TOKEN=sbp_<personal token>
 ./node_modules/.bin/supabase db push --linked
 ```
 
-Seventeen migrations. They create the tables, the RLS policies, the two storage
-buckets and the payload functions. Then the real communities, people and
-tenures:
+Twenty-four migrations, in `supabase/migrations/`. They create the tables, the
+RLS policies, the two storage buckets and the payload functions.
+
+*If the CLI is awkward*, `supabase/schema.sql` is the same statements in one
+file to paste into the dashboard's SQL editor — but prefer the push: it also
+records what ran in `supabase_migrations.schema_migrations`, and without that
+history the next migration you add will try to re-run everything.
+
+Then the real communities, people and tenures:
 
 ```bash
 node scripts/import-real.mjs
